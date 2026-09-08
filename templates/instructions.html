@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TraderX — Setup & Instructions</title>
+  <meta name="description" content="Setup guide and daily workflow instructions for the TraderX intraday options paper trading dashboard." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/css/dashboard.css" />
+  <link rel="stylesheet" href="/static/css/instructions.css" />
+</head>
+<body>
+<div class="app-container">
+
+  <!-- HEADER -->
+  <header class="header">
+    <div class="logo">
+      <svg width="28" height="28" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <rect width="28" height="28" rx="6" fill="#58a6ff" fill-opacity="0.15"/>
+        <path d="M7 18L12 12L16 15L21 9" stroke="#58a6ff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+        <circle cx="21" cy="9" r="2" fill="#3fb950"/>
+      </svg>
+      <h1>TraderX</h1>
+      <span class="badge-paper">Paper Trading</span>
+    </div>
+    <nav class="header-nav">
+      <a href="/" class="nav-link">&#9632; Dashboard</a>
+      <a href="/instructions" class="nav-link active">&#9432; Instructions</a>
+    </nav>
+  </header>
+
+  <!-- PAGE TITLE -->
+  <div class="page-hero">
+    <div class="page-hero-icon">&#128218;</div>
+    <h2 class="page-title">Setup &amp; Daily Workflow</h2>
+    <p class="page-subtitle">Everything you need to get TraderX running and use it every trading morning.</p>
+  </div>
+
+  <!-- PAPER TRADING NOTICE -->
+  <div class="notice-banner" role="note">
+    <span class="notice-icon">&#9888;</span>
+    <div>
+      <strong>Paper Trading Only</strong> — TraderX <em>never</em> places real orders. It only reads live
+      market data from Upstox and simulates trades in a local SQLite database. No order-placement
+      endpoint is ever called.
+    </div>
+  </div>
+
+  <div class="instructions-layout">
+
+    <!-- LEFT RAIL: TOC -->
+    <aside class="toc" aria-label="Table of contents">
+      <div class="toc-title">On This Page</div>
+      <ul class="toc-list">
+        <li><a href="#prerequisites" class="toc-link">Prerequisites</a></li>
+        <li><a href="#install" class="toc-link">Installation</a></li>
+        <li><a href="#configure" class="toc-link">Configuration</a></li>
+        <li><a href="#run" class="toc-link">Running the App</a></li>
+        <li><a href="#auth" class="toc-link">Upstox Authentication</a></li>
+        <li><a href="#daily" class="toc-link">Daily Workflow</a></li>
+        <li><a href="#dashboard-guide" class="toc-link">Dashboard Guide</a></li>
+        <li><a href="#strategy" class="toc-link">Strategy Parameters</a></li>
+        <li><a href="#cli" class="toc-link">CLI Tools</a></li>
+        <li><a href="#troubleshoot" class="toc-link">Troubleshooting</a></li>
+      </ul>
+    </aside>
+
+    <!-- MAIN CONTENT -->
+    <main class="instructions-body">
+
+      <!-- PREREQUISITES -->
+      <section class="instr-section" id="prerequisites">
+        <h2 class="instr-heading">
+          <span class="step-num">1</span>
+          Prerequisites
+        </h2>
+        <ul class="check-list">
+          <li>
+            <span class="check">&#10003;</span>
+            <span><strong>Python 3.10+</strong> — check with <code>python3 --version</code></span>
+          </li>
+          <li>
+            <span class="check">&#10003;</span>
+            <span>An <strong>Upstox Developer App</strong> — create one at
+              <a href="https://developer.upstox.com/" target="_blank" rel="noopener" class="ext-link">developer.upstox.com &#8599;</a>
+            </span>
+          </li>
+          <li>
+            <span class="check">&#10003;</span>
+            <span>Your app's <strong>Redirect URI</strong> set to exactly:
+              <code>http://127.0.0.1:8000/callback</code>
+            </span>
+          </li>
+          <li>
+            <span class="check">&#10003;</span>
+            <span>An active Upstox trading account with market data subscription</span>
+          </li>
+        </ul>
+      </section>
+
+      <!-- INSTALL -->
+      <section class="instr-section" id="install">
+        <h2 class="instr-heading">
+          <span class="step-num">2</span>
+          Installation
+        </h2>
+        <p class="instr-text">Clone or download the project, then install dependencies:</p>
+        <div class="code-block">
+          <div class="code-block-label">Terminal</div>
+          <pre><code>cd /path/to/TraderX
+pip install -r requirements.txt</code></pre>
+        </div>
+        <div class="info-callout">
+          <span class="callout-icon">&#128161;</span>
+          Using a virtual environment is recommended:
+          <div class="code-block" style="margin-top:0.75rem">
+            <pre><code>python3 -m venv .venv
+source .venv/bin/activate   # macOS / Linux
+.venv\Scripts\activate      # Windows
+pip install -r requirements.txt</code></pre>
+          </div>
+        </div>
+      </section>
+
+      <!-- CONFIGURE -->
+      <section class="instr-section" id="configure">
+        <h2 class="instr-heading">
+          <span class="step-num">3</span>
+          Configuration
+        </h2>
+        <p class="instr-text">Open <code>config.yaml</code> and fill in your Upstox credentials:</p>
+        <div class="code-block">
+          <div class="code-block-label">config.yaml</div>
+          <pre><code>upstox:
+  api_key: "YOUR_API_KEY"       # client_id from Upstox dev portal
+  api_secret: "YOUR_API_SECRET" # client_secret from Upstox dev portal
+  redirect_uri: "http://127.0.0.1:8000/callback"
+
+strategy:
+  target_pct: 20.0        # Exit at +20% from entry
+  stoploss_pct: 20.0      # Exit at -20% from entry
+  hard_exit_time: "09:32" # HH:MM IST — force-close all positions
+  max_positions: 3
+
+server:
+  host: "127.0.0.1"
+  port: 8000</code></pre>
+        </div>
+        <div class="info-callout warn">
+          <span class="callout-icon">&#128274;</span>
+          <strong>Security:</strong> <code>config.yaml</code> contains your API secret — keep it local.
+          It is listed in <code>.gitignore</code> along with <code>.upstox_token</code> and <code>traderx.db</code>.
+        </div>
+        <p class="instr-text">Alternatively, use environment variables (take priority over YAML):</p>
+        <div class="code-block">
+          <div class="code-block-label">Terminal</div>
+          <pre><code>export UPSTOX_API_KEY="your_api_key"
+export UPSTOX_API_SECRET="your_api_secret"</code></pre>
+        </div>
+      </section>
+
+      <!-- RUN -->
+      <section class="instr-section" id="run">
+        <h2 class="instr-heading">
+          <span class="step-num">4</span>
+          Running the App
+        </h2>
+        <div class="code-block">
+          <div class="code-block-label">Terminal</div>
+          <pre><code>cd /path/to/TraderX
+python3 -m uvicorn app:app --host 127.0.0.1 --port 8000</code></pre>
+        </div>
+        <p class="instr-text">Then open your browser at:</p>
+        <a href="/" class="launch-link" aria-label="Open dashboard">
+          &#9654;&nbsp; http://127.0.0.1:8000
+        </a>
+        <p class="instr-text" style="margin-top:1rem">On startup you should see in the terminal:</p>
+        <div class="code-block terminal">
+          <pre><code>  TraderX — Paper Trading Dashboard
+  PAPER TRADING MODE — NO LIVE ORDERS WILL BE PLACED
+============================================================</code></pre>
+        </div>
+      </section>
+
+      <!-- AUTH -->
+      <section class="instr-section" id="auth">
+        <h2 class="instr-heading">
+          <span class="step-num">5</span>
+          Upstox Authentication
+        </h2>
+        <p class="instr-text">Upstox uses OAuth 2.0. You need to log in <strong>once each trading day</strong> (tokens expire daily at midnight).</p>
+
+        <div class="flow-steps">
+          <div class="flow-step">
+            <div class="flow-step-num">1</div>
+            <div>Click <strong>"Login to Upstox"</strong> in the top-right of the dashboard.</div>
+          </div>
+          <div class="flow-arrow">&#8595;</div>
+          <div class="flow-step">
+            <div class="flow-step-num">2</div>
+            <div>You'll be redirected to Upstox's login page. Enter your credentials and complete 2FA.</div>
+          </div>
+          <div class="flow-arrow">&#8595;</div>
+          <div class="flow-step">
+            <div class="flow-step-num">3</div>
+            <div>Upstox redirects back to <code>/callback</code>. The token is exchanged and saved to <code>.upstox_token</code> automatically.</div>
+          </div>
+          <div class="flow-arrow">&#8595;</div>
+          <div class="flow-step">
+            <div class="flow-step-num">4</div>
+            <div>The auth dot turns <span style="color:var(--green)">green</span> and shows <strong>"Connected to Upstox"</strong>. You're ready.</div>
+          </div>
+        </div>
+        <div class="info-callout">
+          <span class="callout-icon">&#128260;</span>
+          <strong>Token reuse:</strong> Once authenticated, the token is cached. If you restart the app during the same day, it loads automatically — no re-login needed until the next day.
+        </div>
+      </section>
+
+      <!-- DAILY WORKFLOW -->
+      <section class="instr-section" id="daily">
+        <h2 class="instr-heading">
+          <span class="step-num">6</span>
+          Daily Workflow
+        </h2>
+
+        <div class="timeline">
+          <div class="timeline-item">
+            <div class="timeline-time">~9:00 AM</div>
+            <div class="timeline-content">
+              <strong>Start the server &amp; authenticate</strong>
+              <p>Run the app and click "Login to Upstox" if not already authenticated. The green dot confirms you're live.</p>
+            </div>
+          </div>
+          <div class="timeline-item">
+            <div class="timeline-time">~9:15 AM</div>
+            <div class="timeline-content">
+              <strong>Market opens</strong>
+              <p>Watch price action for the first 2 minutes to identify your candidates.</p>
+            </div>
+          </div>
+          <div class="timeline-item highlight">
+            <div class="timeline-time">9:17 AM</div>
+            <div class="timeline-content">
+              <strong>Submit candidates</strong>
+              <p>Type up to 3 stock names (e.g. <code>RELIANCE</code>, <code>TCS</code>, <code>INFY</code>) in the input boxes and click <strong>▶ Start Tracking</strong>. The app will:</p>
+              <ul class="sub-list">
+                <li>Look up each stock's current spot price</li>
+                <li>Find the ATM Put option for the current weekly expiry</li>
+                <li>Fetch the live LTP as entry price</li>
+                <li>Calculate Target (+20%) and SL (−20%)</li>
+                <li>Start streaming live LTP via Upstox WebSocket</li>
+              </ul>
+            </div>
+          </div>
+          <div class="timeline-item">
+            <div class="timeline-time">9:17–9:32 AM</div>
+            <div class="timeline-content">
+              <strong>Monitor</strong>
+              <p>Watch the 3 cards. Each one independently tracks whether it hits target, SL, or neither. A flash and badge update happens the moment any position exits.</p>
+            </div>
+          </div>
+          <div class="timeline-item highlight warn">
+            <div class="timeline-time">9:32 AM</div>
+            <div class="timeline-content">
+              <strong>Hard Exit</strong>
+              <p>Any positions still open are automatically closed at the current LTP with reason <strong>TIME_EXIT</strong>. The feed stops. No action needed from you.</p>
+            </div>
+          </div>
+          <div class="timeline-item">
+            <div class="timeline-time">After 9:32 AM</div>
+            <div class="timeline-content">
+              <strong>Mark your actual pick</strong>
+              <p>Toggle "My actual pick" on whichever of the 3 you would have (or did) trade. This is used to filter the Stats panel to show your personal track record.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- DASHBOARD GUIDE -->
+      <section class="instr-section" id="dashboard-guide">
+        <h2 class="instr-heading">
+          <span class="step-num">7</span>
+          Dashboard Guide
+        </h2>
+
+        <div class="feature-grid">
+          <div class="feature-card">
+            <div class="feature-icon">&#9711;</div>
+            <div class="feature-title">Countdown Ring</div>
+            <div class="feature-desc">SVG ring at the top counts down from 9:15 to 9:32 AM. Turns red with pulsing digits in the last 2 minutes.</div>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon">&#128202;</div>
+            <div class="feature-title">Position Cards</div>
+            <div class="feature-desc">One card per candidate. Shows symbol, LTP, P&amp;L % in large text (green/red), and a gauge bar between SL and Target.</div>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon">&#128308;</div>
+            <div class="feature-title">Status Badges</div>
+            <div class="feature-desc"><code>● OPEN</code> &rarr; <code>✓ TARGET HIT</code> or <code>✕ SL HIT</code> or <code>⏰ TIME EXIT</code>. Card border glows the matching color.</div>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon">&#9889;</div>
+            <div class="feature-title">Exit Flash</div>
+            <div class="feature-desc">When any position exits, the card flashes + a full-screen color overlay fires — impossible to miss even at a glance.</div>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon">&#128268;</div>
+            <div class="feature-title">Disconnect Banner</div>
+            <div class="feature-desc">Red pulsing banner appears at the top if the Upstox WebSocket feed drops. Auto-reconnect is attempted in the background.</div>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon">&#128200;</div>
+            <div class="feature-title">Stats Panel</div>
+            <div class="feature-desc">Win rate, avg win/loss %, and expectancy computed from all historical trades. Toggle between "All Candidates" and "My Picks Only".</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- STRATEGY -->
+      <section class="instr-section" id="strategy">
+        <h2 class="instr-heading">
+          <span class="step-num">8</span>
+          Strategy Parameters
+        </h2>
+        <p class="instr-text">All parameters are in <code>config.yaml</code>. Change them without touching any Python code:</p>
+
+        <table class="param-table">
+          <thead>
+            <tr>
+              <th>Parameter</th>
+              <th>Default</th>
+              <th>Description</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>target_pct</code></td>
+              <td><code>20.0</code></td>
+              <td>Exit position when LTP rises +N% above entry price</td>
+            </tr>
+            <tr>
+              <td><code>stoploss_pct</code></td>
+              <td><code>20.0</code></td>
+              <td>Exit position when LTP falls −N% below entry price</td>
+            </tr>
+            <tr>
+              <td><code>hard_exit_time</code></td>
+              <td><code>09:32</code></td>
+              <td>Force-close all open positions at this time IST (HH:MM)</td>
+            </tr>
+            <tr>
+              <td><code>max_positions</code></td>
+              <td><code>3</code></td>
+              <td>Maximum simultaneous candidate positions</td>
+            </tr>
+            <tr>
+              <td><code>entry_window_start</code></td>
+              <td><code>09:15</code></td>
+              <td>Earliest allowed entry time (informational)</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div class="info-callout">
+          <span class="callout-icon">&#128260;</span>
+          Restart the server after changing <code>config.yaml</code> for changes to take effect.
+        </div>
+      </section>
+
+      <!-- CLI TOOLS -->
+      <section class="instr-section" id="cli">
+        <h2 class="instr-heading">
+          <span class="step-num">9</span>
+          CLI Tools
+        </h2>
+        <p class="instr-text">You can run <code>upstox_client.py</code> directly to test the connection without starting the full dashboard:</p>
+
+        <div class="code-block">
+          <div class="code-block-label">Smoke-test WebSocket feed (prints 5 ticks, then exits)</div>
+          <pre><code>python3 upstox_client.py --test "NSE_INDEX|Nifty 50"</code></pre>
+        </div>
+        <div class="code-block">
+          <div class="code-block-label">Resolve ATM PE for a stock and print its LTP</div>
+          <pre><code>python3 upstox_client.py --atm-pe RELIANCE</code></pre>
+        </div>
+        <div class="code-block">
+          <div class="code-block-label">Manually exchange an OAuth code (if the browser callback fails)</div>
+          <pre><code>python3 upstox_client.py --code &lt;AUTH_CODE_FROM_URL&gt;</code></pre>
+        </div>
+      </section>
+
+      <!-- TROUBLESHOOTING -->
+      <section class="instr-section" id="troubleshoot">
+        <h2 class="instr-heading">
+          <span class="step-num">10</span>
+          Troubleshooting
+        </h2>
+
+        <div class="faq-list">
+
+          <details class="faq-item">
+            <summary class="faq-q">&#9656; "Not authenticated" — login button doesn't work</summary>
+            <div class="faq-a">
+              <p>Make sure <code>api_key</code> and <code>api_secret</code> are filled in <code>config.yaml</code>. Also confirm the Redirect URI in your Upstox app settings is exactly <code>http://127.0.0.1:8000/callback</code> (no trailing slash).</p>
+            </div>
+          </details>
+
+          <details class="faq-item">
+            <summary class="faq-q">&#9656; "Empty option chain" error when submitting stocks</summary>
+            <div class="faq-a">
+              <p>This happens if the stock name doesn't match Upstox's instrument search, or there's no active option chain (e.g. entered outside trading hours). Try using the exact Upstox instrument key format: <code>NSE_FO|&lt;token&gt;</code>. You can find instrument keys in Upstox's instrument dump CSV.</p>
+            </div>
+          </details>
+
+          <details class="faq-item">
+            <summary class="faq-q">&#9656; The red "data feed disconnected" banner keeps appearing</summary>
+            <div class="faq-a">
+              <p>The WebSocket auto-reconnects with exponential backoff (up to 30s). Check your internet connection. If it persists, your Upstox token may have expired — re-login via the dashboard button.</p>
+            </div>
+          </details>
+
+          <details class="faq-item">
+            <summary class="faq-q">&#9656; LTP shows 0.00 or doesn't update</summary>
+            <div class="faq-a">
+              <p>The option may have zero liquidity or market is closed. Confirm you're within market hours (9:15 AM – 3:30 PM IST). The WebSocket feed only carries active ticks — illiquid options may be slow.</p>
+            </div>
+          </details>
+
+          <details class="faq-item">
+            <summary class="faq-q">&#9656; Port 8000 is already in use</summary>
+            <div class="faq-a">
+              <p>Change the port in <code>config.yaml</code> under <code>server.port</code>, and update the Redirect URI in both <code>config.yaml</code> and your Upstox app settings to match.</p>
+              <div class="code-block" style="margin-top:0.5rem">
+                <pre><code>python3 -m uvicorn app:app --host 127.0.0.1 --port 8080</code></pre>
+              </div>
+            </div>
+          </details>
+
+          <details class="faq-item">
+            <summary class="faq-q">&#9656; "protobuf" import error on startup</summary>
+            <div class="faq-a">
+              <p>Install the package manually: <code>pip install protobuf</code>. The app will fall back to JSON decoding if the compiled <code>MarketDataFeed_pb2.py</code> module fails — but having protobuf installed is required.</p>
+            </div>
+          </details>
+
+        </div>
+      </section>
+
+      <!-- BACK TO DASHBOARD -->
+      <div class="back-bar">
+        <a href="/" class="btn-back">&#9650; Back to Dashboard</a>
+      </div>
+
+    </main>
+  </div>
+
+</div><!-- /.app-container -->
+</body>
+</html>

@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TraderX — Paper Trading Dashboard</title>
+  <meta name="description" content="Real-time intraday ATM PE options paper trading dashboard. Live LTP streaming, P&L tracking, target/SL monitoring via Upstox WebSocket." />
+
+  <!-- Fonts: Outfit (geometric display numerics) + DM Mono (tabular data) + DM Sans (UI) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+
+  <link rel="stylesheet" href="/static/css/dashboard.css" />
+  <link rel="stylesheet" href="/static/css/dashboard-extra.css" />
+</head>
+<body>
+<div class="app-container">
+
+  <!-- FEED DISCONNECT BANNER -->
+  <div id="feed-banner" class="connection-banner" role="alert" aria-live="assertive">
+    <span class="dot"></span>
+    <span>Market data feed disconnected &mdash; attempting reconnect&hellip;</span>
+  </div>
+
+  <!-- HEADER -->
+  <header class="header">
+    <div class="logo">
+      <svg width="28" height="28" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <rect width="28" height="28" rx="6" fill="#3B82F6" fill-opacity="0.12"/>
+        <path d="M6 19L11 12.5L15.5 15.5L22 8" stroke="#3B82F6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        <circle cx="22" cy="8" r="2.2" fill="#22C55E"/>
+      </svg>
+      <h1>TraderX</h1>
+      <span class="badge-paper">Paper</span>
+    </div>
+
+    <nav class="header-nav" aria-label="Site navigation">
+      <a href="/" class="nav-link active" aria-current="page">Dashboard</a>
+      <a href="/instructions" class="nav-link">Instructions</a>
+    </nav>
+
+    <div class="auth-section">
+      <div class="auth-status" id="auth-status" role="status" aria-live="polite">
+        <span class="dot disconnected" id="auth-dot" aria-hidden="true"></span>
+        <span id="auth-label">Not authenticated</span>
+      </div>
+      <button class="btn-login" id="btn-login" onclick="window.location.href='/auth/login'" aria-label="Login to Upstox via OAuth">
+        Login
+      </button>
+    </div>
+  </header>
+
+  <!-- COUNTDOWN BAR -->
+  <section class="countdown-bar" aria-label="Session countdown to hard exit at 9:32 AM">
+    <div class="countdown-left">
+      <div class="countdown-label">Hard Exit In</div>
+      <div class="countdown-time" id="countdown-display" aria-live="polite">--:--</div>
+    </div>
+
+    <div class="countdown-ring-wrapper" aria-hidden="true">
+      <svg class="countdown-ring" width="88" height="88" viewBox="0 0 88 88">
+        <circle class="ring-track" cx="44" cy="44" r="38" />
+        <circle class="ring-fill" id="ring-fill" cx="44" cy="44" r="38" />
+      </svg>
+      <div class="ring-center-label" id="ring-center">9:32</div>
+    </div>
+
+    <div class="countdown-right">
+      <div class="countdown-label">IST</div>
+      <div class="current-time" id="current-time-display" aria-live="polite">--:--:--</div>
+      <div class="session-status" id="session-status-label">Waiting</div>
+    </div>
+  </section>
+
+  <!-- STOCK INPUT FORM -->
+  <section class="input-section" aria-label="Submit today's candidate stocks">
+    <h2>Today&rsquo;s Candidates</h2>
+    <p class="input-hint">
+      Stock names (e.g. <code>RELIANCE</code>) or instrument keys (e.g. <code>NSE_FO|51060</code>).
+      App resolves ATM PE, fetches live LTP, and starts tracking immediately.
+    </p>
+    <div class="input-row">
+      <input id="stock-1" class="input-field" type="text"
+        placeholder="Candidate 1" autocomplete="off" spellcheck="false" aria-label="Candidate stock 1" />
+      <input id="stock-2" class="input-field" type="text"
+        placeholder="Candidate 2" autocomplete="off" spellcheck="false" aria-label="Candidate stock 2" />
+      <input id="stock-3" class="input-field" type="text"
+        placeholder="Candidate 3" autocomplete="off" spellcheck="false" aria-label="Candidate stock 3" />
+    </div>
+    <div class="input-actions">
+      <button class="btn-submit" id="btn-submit" onclick="submitStocks()" aria-label="Fetch LTP and start tracking positions">
+        <span id="btn-submit-text">&#9654; Start Tracking</span>
+        <span id="btn-submit-spinner" class="spinner" style="display:none" aria-hidden="true"></span>
+      </button>
+      <div id="submit-error" class="submit-error" role="alert" aria-live="assertive" style="display:none"></div>
+    </div>
+  </section>
+
+  <!-- 3 POSITION CARDS -->
+  <section class="positions-grid" id="positions-grid" aria-label="Live positions">
+    <div class="position-card empty" id="card-slot-0" aria-label="Position slot 1">
+      <span class="empty-label">Awaiting position 1</span>
+    </div>
+    <div class="position-card empty" id="card-slot-1" aria-label="Position slot 2">
+      <span class="empty-label">Awaiting position 2</span>
+    </div>
+    <div class="position-card empty" id="card-slot-2" aria-label="Position slot 3">
+      <span class="empty-label">Awaiting position 3</span>
+    </div>
+  </section>
+
+  <!-- STATS PANEL -->
+  <section class="stats-panel" aria-label="All-time performance statistics">
+    <div class="stats-header">
+      <div class="stats-title">Performance Stats</div>
+      <div class="stats-filter" role="group" aria-label="Filter statistics by trade type">
+        <button id="btn-stats-all" class="active" onclick="switchStats('all')" aria-pressed="true">All Candidates</button>
+        <button id="btn-stats-actual" onclick="switchStats('actual')" aria-pressed="false">My Picks Only</button>
+      </div>
+    </div>
+    <div class="stats-grid" id="stats-grid">
+      <div class="stat-item">
+        <div class="stat-value" id="stat-total">&mdash;</div>
+        <div class="stat-label">Total Trades</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-value" id="stat-winrate">&mdash;</div>
+        <div class="stat-label">Win Rate</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-value positive" id="stat-avgwin">&mdash;</div>
+        <div class="stat-label">Avg Win %</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-value negative" id="stat-avgloss">&mdash;</div>
+        <div class="stat-label">Avg Loss %</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-value" id="stat-expectancy">&mdash;</div>
+        <div class="stat-label">Expectancy %</div>
+      </div>
+    </div>
+  </section>
+
+</div><!-- /.app-container -->
+
+<!-- FULL-SCREEN EXIT FLASH OVERLAY -->
+<div id="exit-flash-overlay" class="exit-flash-overlay" aria-hidden="true"></div>
+
+<script src="/static/js/dashboard.js"></script>
+</body>
+</html>

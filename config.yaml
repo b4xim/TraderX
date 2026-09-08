@@ -1,0 +1,27 @@
+# ──────────────────────────────────────────────────────────────
+# TraderX — Paper Trading Configuration
+# ──────────────────────────────────────────────────────────────
+# Adjust these values without touching core logic.
+
+# Upstox API credentials (get from https://api.upstox.com/developer/apps)
+upstox:
+  api_key: ""        # Your Upstox API key (client_id)
+  api_secret: ""     # Your Upstox API secret (client_secret)
+  redirect_uri: "http://127.0.0.1:8000/callback"
+
+# Strategy parameters
+strategy:
+  target_pct: 20.0          # Exit at +20% from entry
+  stoploss_pct: 20.0        # Exit at -20% from entry
+  hard_exit_time: "09:32"   # HH:MM IST — force close all open positions
+  entry_window_start: "09:15"  # Earliest allowed entry (market open)
+  max_positions: 3           # Number of simultaneous candidates
+
+# Server
+server:
+  host: "127.0.0.1"
+  port: 8000
+
+# Database
+database:
+  path: "traderx.db"

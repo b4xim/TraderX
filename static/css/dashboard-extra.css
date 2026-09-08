@@ -1,0 +1,392 @@
+/*
+ * TraderX Dashboard — Extra Styles
+ * Augments dashboard.css with countdown ring, card enhancements,
+ * flash overlays, and premium micro-animations.
+ */
+
+/* ─── Input hints & actions ─────────────────────────────── */
+.input-hint {
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+  margin-bottom: var(--space-4);
+  line-height: 1.6;
+}
+
+.input-hint code {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--blue);
+  background: var(--blue-bg);
+  padding: 1px 6px;
+  border-radius: 3px;
+}
+
+.input-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  margin-top: var(--space-4);
+}
+
+.submit-error {
+  font-size: var(--text-sm);
+  color: var(--red);
+  background: var(--red-bg);
+  border: 1px solid rgba(248, 81, 73, 0.25);
+  border-radius: var(--radius-sm);
+  padding: var(--space-2) var(--space-4);
+  animation: fadeIn 0.2s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+
+/* ─── Countdown Bar Layout ──────────────────────────────── */
+.countdown-bar {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: var(--space-6);
+}
+
+.countdown-left {
+  text-align: right;
+}
+
+.countdown-right {
+  text-align: left;
+}
+
+.session-status {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  margin-top: var(--space-1);
+  letter-spacing: 0.03em;
+}
+
+.session-status.active {
+  color: var(--green);
+}
+
+.session-status.expired {
+  color: var(--text-muted);
+}
+
+
+/* ─── SVG Countdown Ring ────────────────────────────────── */
+.countdown-ring-wrapper {
+  position: relative;
+  width: 80px;
+  height: 80px;
+  flex-shrink: 0;
+}
+
+.countdown-ring {
+  transform: rotate(-90deg);
+  display: block;
+}
+
+.ring-track {
+  fill: none;
+  stroke: var(--bg-primary);
+  stroke-width: 6;
+}
+
+.ring-fill {
+  fill: none;
+  stroke: var(--blue);
+  stroke-width: 6;
+  stroke-linecap: round;
+  stroke-dasharray: 238.76; /* 2 * pi * 34 */
+  stroke-dashoffset: 0;
+  transition: stroke-dashoffset 1s linear, stroke 0.5s ease;
+}
+
+.ring-fill.urgent {
+  stroke: var(--red);
+}
+
+.ring-fill.expired {
+  stroke: var(--text-muted);
+}
+
+.ring-center-label {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+  pointer-events: none;
+}
+
+
+/* ─── Position Card Enhancements ─────────────────────────── */
+.position-card {
+  display: flex;
+  flex-direction: column;
+  min-height: 320px;
+}
+
+.position-card:not(.empty) {
+  cursor: default;
+}
+
+/* Glow on TARGET status */
+.position-card.status-TARGET {
+  border-color: var(--green);
+  box-shadow: 0 0 0 1px var(--green), 0 4px 20px rgba(63, 185, 80, 0.15);
+}
+
+/* Glow on SL status */
+.position-card.status-SL {
+  border-color: var(--red);
+  box-shadow: 0 0 0 1px var(--red), 0 4px 20px rgba(248, 81, 73, 0.15);
+}
+
+/* Glow on TIME_EXIT status */
+.position-card.status-TIME_EXIT {
+  border-color: var(--amber);
+  box-shadow: 0 0 0 1px var(--amber), 0 4px 20px rgba(210, 153, 34, 0.15);
+}
+
+/* "Actual pick" card highlight */
+.position-card.is-actual-pick {
+  background: linear-gradient(135deg, var(--bg-card) 0%, rgba(88, 166, 255, 0.05) 100%);
+}
+
+/* Separator line within card */
+.card-separator {
+  height: 1px;
+  background: var(--border-subtle);
+  margin: var(--space-3) 0;
+  opacity: 0.5;
+}
+
+/* Instrument key subline */
+.card-symbol-sub {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  margin-top: var(--space-1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Entry time label */
+.entry-time {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+}
+
+/* Exit info block shown after position closes */
+.exit-info {
+  margin-top: var(--space-2);
+  padding: var(--space-3);
+  background: var(--bg-primary);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.exit-info .exit-row {
+  display: flex;
+  justify-content: space-between;
+}
+
+.exit-info .exit-label {
+  color: var(--text-muted);
+}
+
+.exit-info .exit-val {
+  font-family: var(--font-mono);
+  font-weight: 600;
+}
+
+
+/* ─── Full-screen Exit Flash Overlay ─────────────────────── */
+.exit-flash-overlay {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  z-index: 9999;
+}
+
+.exit-flash-overlay.flash-target {
+  animation: overlay-flash-green 0.8s ease-out forwards;
+}
+
+.exit-flash-overlay.flash-sl {
+  animation: overlay-flash-red 0.8s ease-out forwards;
+}
+
+.exit-flash-overlay.flash-time {
+  animation: overlay-flash-amber 0.8s ease-out forwards;
+}
+
+@keyframes overlay-flash-green {
+  0%   { background: rgba(63, 185, 80, 0.18); opacity: 1; }
+  100% { background: rgba(63, 185, 80, 0); opacity: 0; }
+}
+
+@keyframes overlay-flash-red {
+  0%   { background: rgba(248, 81, 73, 0.18); opacity: 1; }
+  100% { background: rgba(248, 81, 73, 0); opacity: 0; }
+}
+
+@keyframes overlay-flash-amber {
+  0%   { background: rgba(210, 153, 34, 0.18); opacity: 1; }
+  100% { background: rgba(210, 153, 34, 0); opacity: 0; }
+}
+
+
+/* ─── Empty card label ──────────────────────────────────── */
+.empty-label {
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+  letter-spacing: 0.02em;
+}
+
+
+/* ─── Stats panel enhancements ──────────────────────────── */
+.stats-panel {
+  margin-bottom: var(--space-8);
+}
+
+.stat-item {
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  transition: background var(--transition-fast);
+}
+
+.stat-item:hover {
+  background: var(--bg-card);
+}
+
+
+/* ─── Scrollbar styling ─────────────────────────────────── */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-subtle);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+}
+
+
+/* ─── Responsive tweaks ─────────────────────────────────── */
+@media (max-width: 900px) {
+  .countdown-bar {
+    grid-template-columns: 1fr;
+    gap: var(--space-4);
+    text-align: center;
+  }
+
+  .countdown-left,
+  .countdown-right {
+    text-align: center;
+  }
+
+  .countdown-ring-wrapper {
+    margin: 0 auto;
+  }
+
+  .input-row {
+    flex-direction: column;
+  }
+
+  .input-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .btn-submit {
+    width: 100%;
+    text-align: center;
+  }
+}
+
+
+/* ─── Card number indicator (1, 2, 3) ───────────────────── */
+.card-slot-num {
+  position: absolute;
+  top: var(--space-3);
+  right: var(--space-3);
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-subtle);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  z-index: 1;
+}
+
+
+/* ─── Pulsing ring when OPEN ────────────────────────────── */
+@keyframes ring-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(88, 166, 255, 0.3); }
+  50%       { box-shadow: 0 0 0 6px rgba(88, 166, 255, 0); }
+}
+
+.gauge-marker.live {
+  animation: ring-pulse 2s ease-in-out infinite;
+}
+
+
+/* ─── Header nav (shared between dashboard & instructions) ── */
+.header-nav {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.nav-link {
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--text-secondary);
+  text-decoration: none;
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-sm);
+  border: 1px solid transparent;
+  transition: all var(--transition-fast);
+}
+
+.nav-link:hover {
+  color: var(--text-primary);
+  background: var(--bg-card);
+  border-color: var(--border-subtle);
+}
+
+.nav-link.active {
+  color: var(--blue);
+  background: var(--blue-bg);
+  border-color: rgba(88, 166, 255, 0.25);
+}

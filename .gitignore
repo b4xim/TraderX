@@ -1,0 +1,64 @@
+# ── Private docs (not for VCS) ──────────────────────────
+README_MAin.md
+TUTORIAL.md
+
+# ── Python ──────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+.Python
+pip-wheel-metadata/
+*.pyo
+
+# ── Virtual environments ─────────────────────────────────
+.venv/
+venv/
+env/
+ENV/
+.env
+
+# ── TraderX secrets & runtime data ──────────────────────
+.upstox_token          # OAuth access token (rotates daily — never commit)
+*.db                   # SQLite trade database (local data, not for VCS)
+*.db-shm
+*.db-wal
+
+# ── Environment / config overrides ──────────────────────
+.env.local
+.env.*.local
+
+# ── OS files ─────────────────────────────────────────────
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V2
+.Trashes
+Thumbs.db
+desktop.ini
+
+# ── Editor / IDE ─────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.cursorrules
+
+# ── Logs ─────────────────────────────────────────────────
+*.log
+logs/
+
+# ── Pytest / coverage ────────────────────────────────────
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# ── UI/UX skill plugin (local tooling, not project source) ──
+uiux/
