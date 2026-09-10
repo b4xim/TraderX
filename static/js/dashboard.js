@@ -32,14 +32,14 @@ const SESSION_TOTAL_SECS = 17 * 60;   // 9:15 → 9:32 = 17 minutes
 const COLORS = {
   emerald: '#10B981',
   rose:    '#F43F5E',
-  cyan:    '#06B6D4',
+  cyan:    '#F5C518',
   amber:   '#F59E0B',
   fg:      '#F8FAFC',
   fg2:     '#CBD5E1',
   fg3:     '#94A3B8',
   fg4:     '#64748B',
   border:  'rgba(255,255,255,0.08)',
-  surface: '#0E131F',
+  surface: '#0E0E14',
 };
 
 // ─── State ────────────────────────────────────────────────────
@@ -990,7 +990,7 @@ function renderBtChart(trades) {
     ctx.arc(xs[mIdx], ys[mIdx], 4.5, 0, Math.PI * 2);
     ctx.fillStyle = t.is_win ? COLORS.emerald : COLORS.rose;
     ctx.fill();
-    ctx.strokeStyle = '#06090e';
+    ctx.strokeStyle = '#050507';
     ctx.lineWidth = 2;
     ctx.stroke();
 
@@ -1062,8 +1062,8 @@ function generateSparklineSvg(candles, entryPrice, exitTime, exitReason, isWin) 
               stroke="rgba(255,255,255,0.2)" stroke-dasharray="3,3" stroke-width="1" />
         <path d="${areaPath}" fill="${fillColor}" />
         <polyline fill="none" stroke="${strokeColor}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" points="${points}" />
-        <circle cx="${firstX}" cy="${entryY}" r="3" fill="#22d3ee" stroke="#06090e" stroke-width="1.5" />
-        <circle cx="${exitX}" cy="${exitY}" r="4" fill="${strokeColor}" stroke="#06090e" stroke-width="1.5" />
+        <circle cx="${firstX}" cy="${entryY}" r="3" fill="#F5C518" stroke="#050507" stroke-width="1.5" />
+        <circle cx="${exitX}" cy="${exitY}" r="4" fill="${strokeColor}" stroke="#050507" stroke-width="1.5" />
       </svg>
     </div>`;
 }
