@@ -32,13 +32,14 @@ const SESSION_TOTAL_SECS = 17 * 60;   // 9:15 → 9:32 = 17 minutes
 const COLORS = {
   emerald: '#10B981',
   rose:    '#F43F5E',
-  cyan:    '#22D3EE',
+  cyan:    '#06B6D4',
   amber:   '#F59E0B',
-  fg:      '#EEF0FF',
-  fg2:     '#9096B8',
-  fg4:     '#363C60',
-  border:  'rgba(255,255,255,0.07)',
-  surface: '#12152A',
+  fg:      '#F8FAFC',
+  fg2:     '#CBD5E1',
+  fg3:     '#94A3B8',
+  fg4:     '#64748B',
+  border:  'rgba(255,255,255,0.08)',
+  surface: '#0E131F',
 };
 
 // ─── State ────────────────────────────────────────────────────
