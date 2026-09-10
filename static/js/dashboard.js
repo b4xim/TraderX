@@ -21,7 +21,8 @@
 'use strict';
 
 // ─── Constants ────────────────────────────────────────────────
-const WS_URL          = `ws://${location.host}/ws`;
+const wsProto         = location.protocol === 'https:' ? 'wss:' : 'ws:';
+const WS_URL          = `${wsProto}//${location.host}/ws`;
 const WS_PING_MS      = 25_000;
 const WS_RETRY_BASE   = 2_000;
 const WS_RETRY_MAX    = 30_000;

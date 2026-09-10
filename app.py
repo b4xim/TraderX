@@ -26,7 +26,7 @@ from typing import Optional
 from zoneinfo import ZoneInfo
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request, Query
-from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
@@ -468,6 +468,12 @@ async def instructions(request: Request):
         name="instructions.html",
         context={"config": cfg},
     )
+
+
+@app.api_route("/favicon.ico", methods=["GET", "HEAD"], include_in_schema=False)
+async def favicon():
+    """Serve the favicon for browsers directly requesting /favicon.ico."""
+    return FileResponse("static/favicon.ico")
 
 
 @app.get("/auth/login")

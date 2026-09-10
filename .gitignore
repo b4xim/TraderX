@@ -62,3 +62,6 @@ htmlcov/
 
 # ── UI/UX skill plugin (local tooling, not project source) ──
 uiux/
+setup_ssl.sh
+deploy_oci.sh
+OCI_DEPLOYMENT_GUIDE.md

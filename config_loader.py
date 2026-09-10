@@ -147,7 +147,15 @@ def load_config(path: Path = CONFIG_PATH) -> AppConfig:
                 cfg.scanner.sector_indices = sector_indices
 
     # Environment variable overrides
-    cfg.upstox.api_key    = os.environ.get("UPSTOX_API_KEY",    cfg.upstox.api_key)
-    cfg.upstox.api_secret = os.environ.get("UPSTOX_API_SECRET", cfg.upstox.api_secret)
+    cfg.upstox.api_key      = os.environ.get("UPSTOX_API_KEY",      cfg.upstox.api_key)
+    cfg.upstox.api_secret   = os.environ.get("UPSTOX_API_SECRET",   cfg.upstox.api_secret)
+    cfg.upstox.redirect_uri = os.environ.get("UPSTOX_REDIRECT_URI", cfg.upstox.redirect_uri)
+    if "HOST" in os.environ:
+        cfg.server.host = os.environ["HOST"]
+    if "PORT" in os.environ:
+        try:
+            cfg.server.port = int(os.environ["PORT"])
+        except ValueError:
+            pass
 
     return cfg
