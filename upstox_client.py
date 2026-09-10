@@ -329,6 +329,7 @@ async def stream_ltp(
     callback: TickCallback,
     *,
     max_retries: int = 5,
+    on_connect: Callable[[], Awaitable[None] | None] | None = None,
     on_disconnect: Callable[[], Awaitable[None] | None] | None = None,
     on_reconnect: Callable[[], Awaitable[None] | None] | None = None,
 ) -> None:
@@ -346,6 +347,8 @@ async def stream_ltp(
         Called with ``(instrument_key, ltp, timestamp_ms)`` on each tick.
     max_retries : int
         Maximum reconnection attempts with exponential backoff.
+    on_connect : callable, optional
+        Called when the connection is established.
     on_disconnect : callable, optional
         Called when the connection drops.
     on_reconnect : callable, optional
@@ -375,13 +378,16 @@ async def stream_ltp(
 
             async with websockets.connect(ws_url, ssl=ssl_ctx) as ws:
                 logger.info("WebSocket connected.")
-                retry_count = 0  # reset on successful connection
-                backoff = 1.0
-
-                if on_reconnect and retry_count == 0:
+                if on_connect:
+                    result = on_connect()
+                    if asyncio.iscoroutine(result):
+                        await result
+                if on_reconnect and retry_count > 0:
                     result = on_reconnect()
                     if asyncio.iscoroutine(result):
                         await result
+                retry_count = 0  # reset on successful connection
+                backoff = 1.0
 
                 # Subscribe to instruments in ltpc mode
                 sub_msg = json.dumps({

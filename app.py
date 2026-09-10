@@ -34,6 +34,7 @@ from config_loader import load_config
 from database import init_db, insert_trade, close_trade, mark_actual_pick, get_stats, get_today_trades, get_trades_for_date, get_all_trade_dates
 from stock_picker import run_stage1_2, run_stage3, format_result_text, ScanResult, log_scan_result
 from backtester import run_historical_backtest, BacktestResult
+from upstox_client import UpstoxClient
 
 IST = ZoneInfo("Asia/Kolkata")
 
@@ -55,7 +56,7 @@ active_positions: dict[str, dict] = {}
 dashboard_clients: set[WebSocket] = set()
 
 # Upstox client instance (initialized after import)
-upstox = None
+upstox: Optional[UpstoxClient] = None
 
 # Feed connection status
 feed_connected = False
