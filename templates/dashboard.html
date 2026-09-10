@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>TraderX — Paper Trading Dashboard</title>
-  <meta name="description" content="Real-time intraday ATM PE options paper trading dashboard. Live LTP streaming, P&L tracking, target/SL monitoring via Upstox WebSocket." />
+  <meta name="description" content="Real-time intraday F&O opening-momentum paper trading dashboard. Live LTP streaming, ATM PE stock picker, P&amp;L tracking and backtester via Upstox." />
 
   <!-- Fonts: Outfit (geometric display numerics) + DM Mono (tabular data) + DM Sans (UI) -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -12,7 +12,6 @@
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
 
   <link rel="stylesheet" href="/static/css/dashboard.css" />
-  <link rel="stylesheet" href="/static/css/dashboard-extra.css" />
 </head>
 <body>
 <div class="app-container">
@@ -51,97 +50,346 @@
     </div>
   </header>
 
-  <!-- COUNTDOWN BAR -->
-  <section class="countdown-bar" aria-label="Session countdown to hard exit at 9:32 AM">
-    <div class="countdown-left">
-      <div class="countdown-label">Hard Exit In</div>
-      <div class="countdown-time" id="countdown-display" aria-live="polite">--:--</div>
-    </div>
-
-    <div class="countdown-ring-wrapper" aria-hidden="true">
-      <svg class="countdown-ring" width="88" height="88" viewBox="0 0 88 88">
-        <circle class="ring-track" cx="44" cy="44" r="38" />
-        <circle class="ring-fill" id="ring-fill" cx="44" cy="44" r="38" />
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <!-- TAB BAR                                                    -->
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <nav class="tab-bar" role="tablist" aria-label="Dashboard sections">
+    <button class="tab-btn active" id="tab-btn-dashboard" role="tab"
+            aria-selected="true" aria-controls="tab-dashboard"
+            onclick="switchTab('dashboard')">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+        <rect x="1" y="7" width="3" height="6" rx="1" fill="currentColor"/>
+        <rect x="5.5" y="4" width="3" height="9" rx="1" fill="currentColor"/>
+        <rect x="10" y="1" width="3" height="12" rx="1" fill="currentColor"/>
       </svg>
-      <div class="ring-center-label" id="ring-center">9:32</div>
+      Live Trading
+    </button>
+    <button class="tab-btn" id="tab-btn-picker" role="tab"
+            aria-selected="false" aria-controls="tab-picker"
+            onclick="switchTab('picker')">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+        <circle cx="6" cy="6" r="4.5" stroke="currentColor" stroke-width="1.5"/>
+        <path d="M9.5 9.5L13 13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+      </svg>
+      Stock Picker
+      <span class="tab-badge" id="picker-badge" style="display:none">0</span>
+    </button>
+    <button class="tab-btn" id="tab-btn-backtester" role="tab"
+            aria-selected="false" aria-controls="tab-backtester"
+            onclick="switchTab('backtester')">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+        <circle cx="7" cy="7" r="5.5" stroke="currentColor" stroke-width="1.5"/>
+        <path d="M7 4v3l2 2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+      </svg>
+      Backtester
+    </button>
+  </nav>
+
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <!-- TAB 1: LIVE TRADING (existing content)                     -->
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <div id="tab-dashboard" role="tabpanel" aria-labelledby="tab-btn-dashboard">
+
+    <!-- COUNTDOWN BAR -->
+    <section class="countdown-bar" aria-label="Session countdown to hard exit at 9:32 AM">
+      <div class="countdown-left">
+        <div class="countdown-label">Hard Exit In</div>
+        <div class="countdown-time" id="countdown-display" aria-live="polite">--:--</div>
+      </div>
+
+      <div class="countdown-ring-wrapper" aria-hidden="true">
+        <svg class="countdown-ring" width="88" height="88" viewBox="0 0 88 88">
+          <circle class="ring-track" cx="44" cy="44" r="38" />
+          <circle class="ring-fill" id="ring-fill" cx="44" cy="44" r="38" />
+        </svg>
+        <div class="ring-center-label" id="ring-center">9:32</div>
+      </div>
+
+      <div class="countdown-right">
+        <div class="countdown-label">IST</div>
+        <div class="current-time" id="current-time-display" aria-live="polite">--:--:--</div>
+        <div class="session-status" id="session-status-label">Waiting</div>
+      </div>
+    </section>
+
+    <!-- STOCK INPUT FORM -->
+    <section class="input-section" aria-label="Submit today's candidate stocks">
+      <h2>Today&rsquo;s Candidates</h2>
+      <p class="input-hint">
+        Stock names (e.g. <code>RELIANCE</code>) or instrument keys (e.g. <code>NSE_FO|51060</code>).
+        App resolves ATM PE, fetches live LTP, and starts tracking immediately.
+        Or use <strong>Stock Picker</strong> tab to auto-select candidates.
+      </p>
+      <div class="input-row">
+        <input id="stock-1" class="input-field" type="text"
+          placeholder="Candidate 1" autocomplete="off" spellcheck="false" aria-label="Candidate stock 1" />
+        <input id="stock-2" class="input-field" type="text"
+          placeholder="Candidate 2" autocomplete="off" spellcheck="false" aria-label="Candidate stock 2" />
+        <input id="stock-3" class="input-field" type="text"
+          placeholder="Candidate 3" autocomplete="off" spellcheck="false" aria-label="Candidate stock 3" />
+      </div>
+      <div class="input-actions">
+        <button class="btn-submit" id="btn-submit" onclick="submitStocks()" aria-label="Fetch LTP and start tracking positions">
+          <span id="btn-submit-text">&#9654; Start Tracking</span>
+          <span id="btn-submit-spinner" class="spinner" style="display:none" aria-hidden="true"></span>
+        </button>
+        <div id="submit-error" class="submit-error" role="alert" aria-live="assertive" style="display:none"></div>
+      </div>
+    </section>
+
+    <!-- 3 POSITION CARDS -->
+    <section class="positions-grid" id="positions-grid" aria-label="Live positions">
+      <div class="position-card empty" id="card-slot-0" aria-label="Position slot 1">
+        <span class="empty-label">Awaiting position 1</span>
+      </div>
+      <div class="position-card empty" id="card-slot-1" aria-label="Position slot 2">
+        <span class="empty-label">Awaiting position 2</span>
+      </div>
+      <div class="position-card empty" id="card-slot-2" aria-label="Position slot 3">
+        <span class="empty-label">Awaiting position 3</span>
+      </div>
+    </section>
+
+    <!-- STATS PANEL -->
+    <section class="stats-panel" aria-label="All-time performance statistics">
+      <div class="stats-header">
+        <div class="stats-title">Performance Stats</div>
+        <div class="stats-filter" role="group" aria-label="Filter statistics by trade type">
+          <button id="btn-stats-all" class="active" onclick="switchStats('all')" aria-pressed="true">All Candidates</button>
+          <button id="btn-stats-actual" onclick="switchStats('actual')" aria-pressed="false">My Picks Only</button>
+        </div>
+      </div>
+      <div class="stats-grid" id="stats-grid">
+        <div class="stat-item">
+          <div class="stat-value" id="stat-total">&mdash;</div>
+          <div class="stat-label">Total Trades</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-value" id="stat-winrate">&mdash;</div>
+          <div class="stat-label">Win Rate</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-value positive" id="stat-avgwin">&mdash;</div>
+          <div class="stat-label">Avg Win %</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-value negative" id="stat-avgloss">&mdash;</div>
+          <div class="stat-label">Avg Loss %</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-value" id="stat-expectancy">&mdash;</div>
+          <div class="stat-label">Expectancy %</div>
+        </div>
+      </div>
+    </section>
+
+  </div><!-- /#tab-dashboard -->
+
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <!-- TAB 2: STOCK PICKER                                        -->
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <div id="tab-picker" role="tabpanel" aria-labelledby="tab-btn-picker" style="display:none">
+
+    <!-- HEADER ROW -->
+    <div class="picker-header">
+      <div class="picker-title-row">
+        <h2 class="picker-heading">F&amp;O Opening-Momentum Scanner</h2>
+        <span class="picker-demo-badge" id="picker-demo-badge" style="display:none">DEMO MODE</span>
+      </div>
+      <p class="picker-subhead">
+        3-stage deterministic filter — runs automatically at 9:15 (Stage 1+2) and 9:16:30 (Stage 3).
+        Use the buttons below to trigger manually at any time.
+      </p>
     </div>
 
-    <div class="countdown-right">
-      <div class="countdown-label">IST</div>
-      <div class="current-time" id="current-time-display" aria-live="polite">--:--:--</div>
-      <div class="session-status" id="session-status-label">Waiting</div>
-    </div>
-  </section>
+    <!-- CONFIG STRIP -->
+    <section class="config-strip" aria-label="Scanner thresholds">
+      <div class="config-strip-title">Active Thresholds <span class="config-from-file">(config.yaml &rarr; scanner)</span></div>
+      <div class="config-chips" id="config-chips">
+        <div class="config-chip"><span class="chip-label">Pool Size</span><span class="chip-val" id="cfg-pool-size">—</span></div>
+        <div class="config-chip"><span class="chip-label">Min OI Tier</span><span class="chip-val" id="cfg-oi-tier">—</span></div>
+        <div class="config-chip"><span class="chip-label">Gap Band</span><span class="chip-val" id="cfg-gap-band">—</span></div>
+        <div class="config-chip"><span class="chip-label">Max Pre-open Flips</span><span class="chip-val" id="cfg-flips">—</span></div>
+        <div class="config-chip"><span class="chip-label">Top-N Losers Check</span><span class="chip-val" id="cfg-top-n">—</span></div>
+      </div>
+    </section>
 
-  <!-- STOCK INPUT FORM -->
-  <section class="input-section" aria-label="Submit today's candidate stocks">
-    <h2>Today&rsquo;s Candidates</h2>
-    <p class="input-hint">
-      Stock names (e.g. <code>RELIANCE</code>) or instrument keys (e.g. <code>NSE_FO|51060</code>).
-      App resolves ATM PE, fetches live LTP, and starts tracking immediately.
-    </p>
-    <div class="input-row">
-      <input id="stock-1" class="input-field" type="text"
-        placeholder="Candidate 1" autocomplete="off" spellcheck="false" aria-label="Candidate stock 1" />
-      <input id="stock-2" class="input-field" type="text"
-        placeholder="Candidate 2" autocomplete="off" spellcheck="false" aria-label="Candidate stock 2" />
-      <input id="stock-3" class="input-field" type="text"
-        placeholder="Candidate 3" autocomplete="off" spellcheck="false" aria-label="Candidate stock 3" />
-    </div>
-    <div class="input-actions">
-      <button class="btn-submit" id="btn-submit" onclick="submitStocks()" aria-label="Fetch LTP and start tracking positions">
-        <span id="btn-submit-text">&#9654; Start Tracking</span>
-        <span id="btn-submit-spinner" class="spinner" style="display:none" aria-hidden="true"></span>
+    <!-- ACTION BUTTONS -->
+    <div class="picker-actions">
+      <button class="btn-scan" id="btn-scan-s12" onclick="runScanStage12()" aria-label="Run Stage 1 and 2 scanner">
+        <span id="scan-s12-text">▶ Run Stage 1+2</span>
+        <span id="scan-s12-spinner" class="spinner" style="display:none"></span>
       </button>
-      <div id="submit-error" class="submit-error" role="alert" aria-live="assertive" style="display:none"></div>
+      <button class="btn-scan btn-scan-s3" id="btn-scan-s3" onclick="runScanStage3()" disabled aria-label="Run Stage 3 confirmation">
+        <span id="scan-s3-text">▶ Run Stage 3</span>
+        <span id="scan-s3-spinner" class="spinner" style="display:none"></span>
+      </button>
+      <div class="scan-status-line" id="scan-status-line">
+        <span id="scan-stage-label">No scan run yet</span>
+        <span id="scan-ts-label"></span>
+      </div>
     </div>
-  </section>
 
-  <!-- 3 POSITION CARDS -->
-  <section class="positions-grid" id="positions-grid" aria-label="Live positions">
-    <div class="position-card empty" id="card-slot-0" aria-label="Position slot 1">
-      <span class="empty-label">Awaiting position 1</span>
-    </div>
-    <div class="position-card empty" id="card-slot-1" aria-label="Position slot 2">
-      <span class="empty-label">Awaiting position 2</span>
-    </div>
-    <div class="position-card empty" id="card-slot-2" aria-label="Position slot 3">
-      <span class="empty-label">Awaiting position 3</span>
-    </div>
-  </section>
+    <div id="picker-error" class="picker-error" role="alert" style="display:none"></div>
 
-  <!-- STATS PANEL -->
-  <section class="stats-panel" aria-label="All-time performance statistics">
-    <div class="stats-header">
-      <div class="stats-title">Performance Stats</div>
-      <div class="stats-filter" role="group" aria-label="Filter statistics by trade type">
-        <button id="btn-stats-all" class="active" onclick="switchStats('all')" aria-pressed="true">All Candidates</button>
-        <button id="btn-stats-actual" onclick="switchStats('actual')" aria-pressed="false">My Picks Only</button>
+    <!-- WARNINGS / NOTES PANEL -->
+    <div id="picker-warnings" class="picker-warnings" style="display:none" role="status" aria-live="polite"></div>
+
+    <!-- SELECTED STOCKS -->
+    <section class="picker-results" id="picker-selected-section" style="display:none" aria-label="Selected stocks">
+      <div class="picker-section-header">
+        <div class="picker-section-title">
+          <span class="section-dot dot-emerald"></span>
+          Selected Candidates
+          <span class="picker-count" id="picker-selected-count">0</span>
+        </div>
       </div>
+      <div class="picker-cards" id="picker-selected-cards"></div>
+    </section>
+
+    <!-- EXCLUDED STOCKS -->
+    <section class="picker-results" id="picker-excluded-section" style="display:none" aria-label="Excluded stocks">
+      <div class="picker-section-header">
+        <button class="picker-section-toggle" id="excluded-toggle" onclick="toggleExcluded()" aria-expanded="false">
+          <span class="section-dot dot-rose"></span>
+          Excluded from Pipeline
+          <span class="picker-count" id="picker-excluded-count">0</span>
+          <svg class="toggle-chevron" id="excluded-chevron" width="14" height="14" viewBox="0 0 14 14" fill="none">
+            <path d="M3 5l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+          </svg>
+        </button>
+      </div>
+      <div id="picker-excluded-table-wrap" style="display:none">
+        <table class="exclusion-table" id="exclusion-table" aria-label="Exclusion audit trail">
+          <thead>
+            <tr>
+              <th>Symbol</th>
+              <th>Excluded At</th>
+              <th>Rule</th>
+              <th>Detail</th>
+            </tr>
+          </thead>
+          <tbody id="exclusion-tbody"></tbody>
+        </table>
+      </div>
+    </section>
+
+  </div><!-- /#tab-picker -->
+
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <!-- TAB 3: BACKTESTER                                          -->
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <div id="tab-backtester" role="tabpanel" aria-labelledby="tab-btn-backtester" style="display:none">
+
+    <div class="picker-header">
+      <div class="picker-title-row">
+        <h2 class="picker-heading">Historical Strategy Backtester</h2>
+        <span class="badge badge-demo" id="bt-demo-badge" style="display:none">DEMO MODE</span>
+      </div>
+      <p class="picker-subhead">
+        Backtest the <strong>9:16 AM F&amp;O Opening-Momentum PE Strategy</strong> on any past date.
+        Scans all F&amp;O stocks to rank the <strong>Top-5 Losers at 9:16 AM</strong>, enters simulated ATM PE options at the 9:16 close,
+        and evaluates Target (20%), Stop Loss (20%), and 9:32 Hard Exit rules minute-by-minute.
+      </p>
     </div>
-    <div class="stats-grid" id="stats-grid">
-      <div class="stat-item">
-        <div class="stat-value" id="stat-total">&mdash;</div>
-        <div class="stat-label">Total Trades</div>
+
+    <!-- DATE PICKER ROW & CONTROLS -->
+    <section class="bt-date-row">
+      <div class="bt-date-input-wrap">
+        <label class="bt-date-label" for="bt-date-input">Select Date</label>
+        <input type="date" id="bt-date-input" class="bt-date-input"
+               aria-label="Select backtest date" />
       </div>
-      <div class="stat-item">
-        <div class="stat-value" id="stat-winrate">&mdash;</div>
-        <div class="stat-label">Win Rate</div>
+
+      <div class="bt-universe-wrap">
+        <label class="bt-date-label">F&amp;O Universe</label>
+        <div class="bt-universe-toggle">
+          <button type="button" class="bt-univ-btn active" id="univ-btn-high" onclick="setBtUniverse('HIGH')">
+            HIGH Tier (~45)
+          </button>
+          <button type="button" class="bt-univ-btn" id="univ-btn-highmed" onclick="setBtUniverse('HIGH+MED')">
+            HIGH + MED (~120)
+          </button>
+        </div>
       </div>
-      <div class="stat-item">
-        <div class="stat-value positive" id="stat-avgwin">&mdash;</div>
-        <div class="stat-label">Avg Win %</div>
+
+      <button class="btn-scan" id="btn-bt-load" onclick="loadBacktest()" aria-label="Run historical backtest">
+        <span id="bt-load-text">⚡ Run Backtest</span>
+        <span id="bt-load-spinner" class="spinner" style="display:none"></span>
+      </button>
+
+      <div id="bt-date-hints" class="bt-date-hints">
+        <!-- Quick date suggestions populated by JS -->
       </div>
-      <div class="stat-item">
-        <div class="stat-value negative" id="stat-avgloss">&mdash;</div>
-        <div class="stat-label">Avg Loss %</div>
+    </section>
+
+    <div id="bt-error" class="picker-error" role="alert" style="display:none"></div>
+
+    <!-- BACKTEST SUMMARY STATS -->
+    <section id="bt-summary" class="bt-summary-section" style="display:none" aria-label="Backtest summary">
+      <div class="bt-summary-grid">
+        <div class="bt-stat-item">
+          <div class="bt-stat-value" id="bt-stat-total">—</div>
+          <div class="bt-stat-label">Top Losers</div>
+        </div>
+        <div class="bt-stat-item">
+          <div class="bt-stat-value positive" id="bt-stat-wins">—</div>
+          <div class="bt-stat-label">Target Hit (20%)</div>
+        </div>
+        <div class="bt-stat-item">
+          <div class="bt-stat-value negative" id="bt-stat-losses">—</div>
+          <div class="bt-stat-label">SL Hit (20%)</div>
+        </div>
+        <div class="bt-stat-item">
+          <div class="bt-stat-value" id="bt-stat-time-exits">—</div>
+          <div class="bt-stat-label">9:32 Time Exits</div>
+        </div>
+        <div class="bt-stat-item">
+          <div class="bt-stat-value" id="bt-stat-winrate">—</div>
+          <div class="bt-stat-label">Win Rate</div>
+        </div>
+        <div class="bt-stat-item">
+          <div class="bt-stat-value" id="bt-stat-total-pnl">—</div>
+          <div class="bt-stat-label">Total PE Return</div>
+        </div>
+        <div class="bt-stat-item">
+          <div class="bt-stat-value" id="bt-stat-avg-pnl">—</div>
+          <div class="bt-stat-label">Avg Trade P&amp;L</div>
+        </div>
       </div>
-      <div class="stat-item">
-        <div class="stat-value" id="stat-expectancy">&mdash;</div>
-        <div class="stat-label">Expectancy %</div>
+    </section>
+
+    <!-- P&L TIMELINE CHART -->
+    <section id="bt-chart-section" class="bt-chart-section" style="display:none" aria-label="P&L timeline">
+      <div class="bt-chart-header">
+        <div class="bt-chart-title">9:16 → 9:32 Strategy Execution Timeline</div>
+        <div class="bt-chart-legend" id="bt-chart-legend"></div>
       </div>
+      <div class="bt-chart-wrap">
+        <canvas id="bt-pnl-chart" aria-label="Cumulative P&L chart" role="img"></canvas>
+      </div>
+    </section>
+
+    <!-- TOP-5 LOSING CANDIDATES & STRATEGY OUTCOMES -->
+    <section id="bt-trades-section" class="picker-results" style="display:none" aria-label="Ranked losers and trades">
+      <div class="picker-section-header">
+        <div class="picker-section-title">
+          <span class="section-dot dot-cyan"></span>
+          Top-5 F&amp;O Losers at 9:16 AM — Simulated Strategy Outcomes
+          <span class="picker-count" id="bt-trade-count">0</span>
+        </div>
+        <div class="bt-header-meta" id="bt-header-meta"></div>
+      </div>
+      <div class="bt-trade-cards" id="bt-trade-cards"></div>
+    </section>
+
+    <div id="bt-empty" class="bt-empty" style="display:none">
+      <div class="bt-empty-icon">📊</div>
+      <div class="bt-empty-msg">No historical data available for this date.</div>
+      <div class="bt-empty-hint">Please select a valid past trading day (Monday through Friday, excluding market holidays).</div>
     </div>
-  </section>
+
+  </div><!-- /#tab-backtester -->
 
 </div><!-- /.app-container -->
 

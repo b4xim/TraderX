@@ -1,0 +1,4 @@
+{
+  "_comment": "User-maintained corporate action flags. Add entries for today's date to flag stocks in the picker. Format: YYYY-MM-DD -> list of {symbol, action, detail}",
+  "2026-09-10": []
+}

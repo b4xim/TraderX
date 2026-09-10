@@ -168,6 +168,20 @@ def get_stats(actual_only: bool = False) -> dict:
     }
 
 
+
+
 def get_today_trades() -> list[dict]:
     """Get trades for today."""
     return get_trades_for_date(date.today().strftime("%Y-%m-%d"))
+
+
+def get_all_trade_dates() -> list[str]:
+    """Get all distinct dates that have trade records, sorted descending (newest first)."""
+    conn = get_connection()
+    rows = conn.execute(
+        "SELECT DISTINCT trade_date FROM trades ORDER BY trade_date DESC"
+    ).fetchall()
+    conn.close()
+    return [r["trade_date"] for r in rows]
+
+
