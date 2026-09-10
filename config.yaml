@@ -5,8 +5,8 @@
 
 # Upstox API credentials (get from https://api.upstox.com/developer/apps)
 upstox:
-  api_key: ""        # Your Upstox API key (client_id)
-  api_secret: ""     # Your Upstox API secret (client_secret)
+  api_key: ""        # Your Upstox API key (or set UPSTOX_API_KEY in .env)
+  api_secret: ""     # Your Upstox API secret (or set UPSTOX_API_SECRET in .env)
   redirect_uri: "http://127.0.0.1:8000/callback"
 
 # Strategy parameters

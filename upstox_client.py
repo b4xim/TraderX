@@ -135,7 +135,18 @@ class UpstoxClient:
                     "Accept": "application/json",
                 },
             )
-            resp.raise_for_status()
+            if resp.is_error:
+                error_detail = resp.text
+                try:
+                    err_json = resp.json()
+                    if "errors" in err_json and isinstance(err_json["errors"], list):
+                        error_detail = "; ".join(e.get("message", str(e)) for e in err_json["errors"])
+                    elif "message" in err_json:
+                        error_detail = err_json["message"]
+                except Exception:
+                    pass
+                logger.error("Upstox token exchange failed (%s): %s", resp.status_code, error_detail)
+                raise RuntimeError(f"Upstox API error ({resp.status_code}): {error_detail}")
             data = resp.json()
 
         token = data["access_token"]

@@ -47,8 +47,29 @@ class AppConfig:
     database: DatabaseConfig = field(default_factory=DatabaseConfig)
 
 
+DOTENV_PATH = Path(__file__).parent / ".env"
+
+
+def _load_dotenv(path: Path = DOTENV_PATH) -> None:
+    """Simple .env loader that populates os.environ if not already set."""
+    if path.exists():
+        try:
+            for line in path.read_text().splitlines():
+                line = line.strip()
+                if not line or line.startswith("#") or "=" not in line:
+                    continue
+                k, v = line.split("=", 1)
+                k = k.strip()
+                v = v.strip().strip("\"'")
+                if k and k not in os.environ:
+                    os.environ[k] = v
+        except Exception:
+            pass
+
+
 def load_config(path: Path = CONFIG_PATH) -> AppConfig:
     """Load configuration from YAML file, with env var overrides."""
+    _load_dotenv()
     cfg = AppConfig()
 
     if path.exists():
@@ -64,7 +85,7 @@ def load_config(path: Path = CONFIG_PATH) -> AppConfig:
         if "database" in raw:
             cfg.database = DatabaseConfig(**raw["database"])
 
-    # Environment variable overrides (useful for CI / secrets)
+    # Environment variable overrides (useful for CI / secrets / .env)
     cfg.upstox.api_key = os.environ.get("UPSTOX_API_KEY", cfg.upstox.api_key)
     cfg.upstox.api_secret = os.environ.get("UPSTOX_API_SECRET", cfg.upstox.api_secret)
 
