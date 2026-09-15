@@ -846,6 +846,11 @@ async function loadBacktest() {
 
     if (data.is_demo && demoBadge) {
       demoBadge.style.display = '';
+      // Show the specific reason from backend warnings if available
+      const reason = (data.warnings && data.warnings.length > 0)
+        ? data.warnings[0]
+        : 'Upstox historical data not yet available for this date. Try a date from at least 2 trading days ago.';
+      showBtError(`⚠ Demo Data: ${reason}`);
     }
 
     const metaEl = $('bt-header-meta');
