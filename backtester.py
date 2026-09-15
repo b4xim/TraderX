@@ -649,7 +649,7 @@ async def run_historical_backtest(
         })
 
     if not scored_candidates:
-        warnings.append(f"No valid trading data retrieved from Upstox for {date_str}. (Market holiday or weekend?) Falling back to demo data.")
+        no_data_reason = f"Upstox has no historical data for {date_str} — this date may be too recent (data is usually available after 1-2 trading days), a market holiday, or a weekend."
         demo_res = _generate_demo_backtest(
             date_str=date_str,
             universe_stocks=universe_stocks,
@@ -660,7 +660,8 @@ async def run_historical_backtest(
             top_n=top_n,
             universe=selected_universe,
         )
-        demo_res.warnings.extend(warnings)
+        # Prepend the real reason so JS reads it as warnings[0]
+        demo_res.warnings.insert(0, no_data_reason)
         return demo_res
 
     # Rank top losers at 9:16
