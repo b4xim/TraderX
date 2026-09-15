@@ -65,7 +65,7 @@ scanner:
   # When true: feeds synthetic pre-open data through the full pipeline so
   # you can test the UI and all 3 stage filters outside 9:00-9:16 AM.
   # Set to false for live operation. NEVER auto-set from code.
-  demo_mode: true
+  demo_mode: false
 
 # Server
 server:
