@@ -55,6 +55,11 @@ let lastScanResult  = null;
 let btChartCtx      = null;
 let activeTab       = 'dashboard';
 
+// Local countdown ticker state
+let localCountdownSecs = 0;     // client-side seconds remaining
+let localHardExitTime  = null;  // e.g. '09:32:00'
+let countdownTicker    = null;  // setInterval handle
+
 // ─── DOM refs ────────────────────────────────────────────────
 const $  = id => document.getElementById(id);
 const elCountdown    = $('countdown-display');
@@ -173,7 +178,10 @@ function handleStateUpdate(state) {
   if (!feedOk && state.positions && state.positions.some(p => p.status === 'OPEN')) {
     elFeedBanner.classList.add('visible');
   }
-  renderCountdown(state.countdown_seconds, state.hard_exit_time, state.current_time);
+  // Sync local ticker with authoritative server value
+  localCountdownSecs = state.countdown_seconds ?? 0;
+  localHardExitTime  = state.hard_exit_time ?? null;
+  renderCountdown(localCountdownSecs, localHardExitTime, state.current_time);
   renderPositions(state.positions || []);
   renderStats(statsMode === 'all' ? state.stats_all : state.stats_actual);
 }
@@ -212,6 +220,28 @@ function renderCountdown(secondsLeft, hardExitTime, currentTime) {
     elSessionLabel.textContent = lastState?.positions?.length > 0 ? 'Session active' : 'Waiting for positions';
     elSessionLabel.className = 'session-status' + (lastState?.positions?.length > 0 ? ' active' : '');
   }
+}
+
+// ─── Local countdown ticker ──────────────────────────────────
+// Ticks every second so the timer is always live, even between WS updates.
+function startCountdownTicker() {
+  if (countdownTicker) return;   // already running
+  countdownTicker = setInterval(() => {
+    // Update current clock display
+    if (elCurrentTime) {
+      const now = new Date();
+      elCurrentTime.textContent = now.toLocaleTimeString('en-IN', {
+        hour: '2-digit', minute: '2-digit', second: '2-digit',
+        hour12: false, timeZone: 'Asia/Kolkata',
+      });
+    }
+    // Tick the local countdown down by 1 second
+    if (localCountdownSecs > 0) {
+      localCountdownSecs -= 1;
+    }
+    // Re-render with local values (WS updates will resync when they arrive)
+    renderCountdown(localCountdownSecs, localHardExitTime, null /* clock already updated above */);
+  }, 1000);
 }
 
 function renderPositions(positions) {
@@ -1237,6 +1267,9 @@ if (btDateInput) btDateInput.addEventListener('keydown', (e) => { if (e.key === 
 
   await checkAuthStatus();
   connectWS();
+
+  // Start the live client-side countdown ticker immediately
+  startCountdownTicker();
 
   // Load config for picker tab (even before switching to it)
   loadPickerConfig();
