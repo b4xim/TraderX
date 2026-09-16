@@ -181,13 +181,16 @@ function handleStateUpdate(state) {
   // Sync local ticker with authoritative server value
   localCountdownSecs = state.countdown_seconds ?? 0;
   localHardExitTime  = state.hard_exit_time ?? null;
-  renderCountdown(localCountdownSecs, localHardExitTime, state.current_time);
+  // Update the clock directly from server time on WS sync
+  if (elCurrentTime && state.current_time) elCurrentTime.textContent = state.current_time;
+  renderCountdown(localCountdownSecs, localHardExitTime);
   renderPositions(state.positions || []);
   renderStats(statsMode === 'all' ? state.stats_all : state.stats_actual);
 }
 
-function renderCountdown(secondsLeft, hardExitTime, currentTime) {
-  if (elCurrentTime) elCurrentTime.textContent = currentTime || '--:--:--';
+function renderCountdown(secondsLeft, hardExitTime) {
+  // Note: elCurrentTime (IST clock) is managed exclusively by the ticker
+  // and handleStateUpdate — NOT here — to avoid overwriting with stale values.
 
   if (secondsLeft <= 0) {
     elCountdown.textContent = '00:00';
@@ -227,7 +230,7 @@ function renderCountdown(secondsLeft, hardExitTime, currentTime) {
 function startCountdownTicker() {
   if (countdownTicker) return;   // already running
   countdownTicker = setInterval(() => {
-    // Update current clock display
+    // Update IST clock every second from the browser's local clock
     if (elCurrentTime) {
       const now = new Date();
       elCurrentTime.textContent = now.toLocaleTimeString('en-IN', {
@@ -239,8 +242,8 @@ function startCountdownTicker() {
     if (localCountdownSecs > 0) {
       localCountdownSecs -= 1;
     }
-    // Re-render with local values (WS updates will resync when they arrive)
-    renderCountdown(localCountdownSecs, localHardExitTime, null /* clock already updated above */);
+    // renderCountdown does NOT touch elCurrentTime — clock is safe here
+    renderCountdown(localCountdownSecs, localHardExitTime);
   }, 1000);
 }
 
