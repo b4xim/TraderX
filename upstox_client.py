@@ -60,29 +60,37 @@ TOKEN_FILE = Path(__file__).parent / ".upstox_token"
 def nearest_monthly_expiry(ref: date | None = None) -> str:
     """Return the nearest NSE monthly-expiry date as YYYY-MM-DD.
 
-    NSE stock options (and index monthly contracts) expire on the
-    **last Thursday of the month**.  If the last Thursday of the current
-    month is today or still in the future we return it; otherwise we
-    return the last Thursday of the *next* month.
+    NSE stock options expire on the **last Thursday of the month**.
+    If the last Thursday of the current month is today or still in the
+    future we return it; otherwise we return next month's last Thursday.
     """
+    return _monthly_expiry_candidates(ref)[0]
+
+
+def _monthly_expiry_candidates(ref: date | None = None, n: int = 3) -> list[str]:
+    """Return the next *n* monthly NSE expiry dates (last Thursday of each month)."""
     import calendar
     from datetime import timedelta
 
     def last_thursday(y: int, m: int) -> date:
         last_day = calendar.monthrange(y, m)[1]
         d = date(y, m, last_day)
-        # Thursday = weekday 3; walk back from last day
         offset = (d.weekday() - 3) % 7
         return d - timedelta(days=offset)
 
     today = ref or date.today()
-    candidate = last_thursday(today.year, today.month)
-    if candidate >= today:
-        return candidate.isoformat()
-    # Current month's expiry already passed — use next month
-    if today.month == 12:
-        return last_thursday(today.year + 1, 1).isoformat()
-    return last_thursday(today.year, today.month + 1).isoformat()
+    results: list[str] = []
+    y, m = today.year, today.month
+    while len(results) < n:
+        candidate = last_thursday(y, m)
+        if candidate >= today:
+            results.append(candidate.isoformat())
+        # Advance to next month
+        if m == 12:
+            y, m = y + 1, 1
+        else:
+            m += 1
+    return results
 
 
 # ──────────────────────────────────────────────────────────────
@@ -255,58 +263,73 @@ class UpstoxClient:
     async def get_atm_pe(self, stock_name: str) -> tuple[str, str, float]:
         """Find the ATM Put Option for *stock_name* (nearest monthly expiry).
 
-        Uses the last-Thursday-of-month rule (NSE monthly expiry) computed
-        locally — no extra API call needed.
+        Tries the nearest 3 monthly expiry dates in sequence (last Thursday
+        of each month) and uses the first one that returns a non-empty option
+        chain. This handles cases where a contract hasn't been admitted to
+        trading for the nearest computed Thursday yet.
 
         Returns ``(stock_name, pe_instrument_key, pe_ltp)``.
         """
         # Step 1 — resolve stock name to equity instrument key
         eq_key = await self.search_instrument(stock_name)
 
-        # Step 2 — compute nearest monthly expiry (last Thursday of month)
-        expiry_date = nearest_monthly_expiry()
-        logger.info("Using expiry date %s for %s", expiry_date, stock_name)
+        # Step 2 — try expiry candidates until one yields a non-empty chain
+        candidates = _monthly_expiry_candidates()
+        last_error: Exception | None = None
 
-        # Step 3 — fetch the option chain for that expiry
         async with httpx.AsyncClient() as client:
-            resp = await client.get(
-                OPTION_CHAIN_URL,
-                params={
-                    "instrument_key": eq_key,
-                    "expiry_date": expiry_date,
-                },
-                headers=self._auth_headers(),
-            )
-            if resp.status_code == 401:
-                self._clear_token()
-                raise RuntimeError(
-                    "Upstox token expired or invalid — please login again via the dashboard."
+            for expiry_date in candidates:
+                logger.info("Trying expiry %s for %s (%s)", expiry_date, stock_name, eq_key)
+                resp = await client.get(
+                    OPTION_CHAIN_URL,
+                    params={
+                        "instrument_key": eq_key,
+                        "expiry_date": expiry_date,
+                    },
+                    headers=self._auth_headers(),
                 )
-            resp.raise_for_status()
-            chain = resp.json()
+                if resp.status_code == 401:
+                    self._clear_token()
+                    raise RuntimeError(
+                        "Upstox token expired or invalid — please login again via the dashboard."
+                    )
+                if resp.is_error:
+                    last_error = ValueError(
+                        f"Option chain API error {resp.status_code} for "
+                        f"{stock_name} expiry={expiry_date}: {resp.text[:200]}"
+                    )
+                    logger.warning(str(last_error))
+                    continue
 
-        rows = chain.get("data", [])
-        if not rows:
-            raise ValueError(
-                f"Empty option chain for {stock_name} ({eq_key}) expiry={expiry_date}. "
-                "The stock may not have tradeable options for this expiry."
-            )
+                chain = resp.json()
+                rows = chain.get("data", [])
+                if rows:
+                    # Found a valid chain — proceed
+                    spot = rows[0].get("underlying_spot_price", 0)
+                    if spot == 0:
+                        raise ValueError("underlying_spot_price missing from option chain response")
 
-        # Step 3 — find ATM strike (closest to underlying spot price)
-        spot = rows[0].get("underlying_spot_price", 0)
-        if spot == 0:
-            raise ValueError("underlying_spot_price missing from option chain response")
+                    best_row = min(rows, key=lambda r: abs(r["strike_price"] - spot))
+                    pe = best_row.get("put_options", {})
+                    pe_key = pe.get("instrument_key", "")
+                    pe_ltp = pe.get("market_data", {}).get("ltp", 0.0)
 
-        best_row = min(rows, key=lambda r: abs(r["strike_price"] - spot))
-        pe = best_row.get("put_options", {})
-        pe_key = pe.get("instrument_key", "")
-        pe_ltp = pe.get("market_data", {}).get("ltp", 0.0)
+                    logger.info(
+                        "ATM PE for %s (expiry=%s): strike=%s, key=%s, ltp=%.2f (spot=%.2f)",
+                        stock_name, expiry_date, best_row["strike_price"], pe_key, pe_ltp, spot,
+                    )
+                    return stock_name.upper(), pe_key, pe_ltp
 
-        logger.info(
-            "ATM PE for %s: strike=%s, key=%s, ltp=%.2f (spot=%.2f)",
-            stock_name, best_row["strike_price"], pe_key, pe_ltp, spot,
-        )
-        return stock_name.upper(), pe_key, pe_ltp
+                logger.warning(
+                    "Empty option chain for %s expiry=%s — trying next expiry",
+                    stock_name, expiry_date,
+                )
+                last_error = ValueError(
+                    f"{stock_name} has no tradeable options for any of the tried "
+                    f"expiry dates: {candidates}. Check if it is in the F&O segment."
+                )
+
+        raise last_error or ValueError(f"No option chain found for {stock_name}")
 
     # ── REST LTP fallback ────────────────────────────────────
 
