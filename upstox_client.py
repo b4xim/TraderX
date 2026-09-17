@@ -67,30 +67,38 @@ def nearest_monthly_expiry(ref: date | None = None) -> str:
     return _monthly_expiry_candidates(ref)[0]
 
 
-def _monthly_expiry_candidates(ref: date | None = None, n: int = 3) -> list[str]:
-    """Return the next *n* monthly NSE expiry dates (last Thursday of each month)."""
+def _monthly_expiry_candidates(ref: date | None = None, n: int = 9) -> list[str]:
+    """Return up to *n* monthly NSE expiry date candidates sorted ascending.
+
+    NSE stock options may be stored under the last Thursday, Friday, or
+    Saturday of the month depending on the expiry cycle. We generate all
+    three for the current month plus the next 2 months, filter to dates
+    >= today, deduplicate, sort, and return the nearest *n*.
+    """
     import calendar
     from datetime import timedelta
 
-    def last_thursday(y: int, m: int) -> date:
+    def last_weekday(y: int, m: int, weekday: int) -> date:
+        """Last occurrence of *weekday* (0=Mon…6=Sun) in the given month."""
         last_day = calendar.monthrange(y, m)[1]
         d = date(y, m, last_day)
-        offset = (d.weekday() - 3) % 7
+        offset = (d.weekday() - weekday) % 7
         return d - timedelta(days=offset)
 
     today = ref or date.today()
-    results: list[str] = []
+    candidates: set[date] = set()
     y, m = today.year, today.month
-    while len(results) < n:
-        candidate = last_thursday(y, m)
-        if candidate >= today:
-            results.append(candidate.isoformat())
-        # Advance to next month
+
+    for _ in range(3):                      # current + next 2 months
+        for wd in (3, 4, 5):               # Thursday=3, Friday=4, Saturday=5
+            candidates.add(last_weekday(y, m, wd))
         if m == 12:
             y, m = y + 1, 1
         else:
             m += 1
-    return results
+
+    upcoming = sorted(c for c in candidates if c >= today)
+    return [d.isoformat() for d in upcoming[:n]]
 
 
 # ──────────────────────────────────────────────────────────────
