@@ -134,7 +134,8 @@ class UpstoxClient:
                 data = json.loads(TOKEN_FILE.read_text())
                 saved_date = data.get("saved_date")  # e.g. "2026-09-17"
                 today = date.today().isoformat()
-                if saved_date != today:
+                # Only discard if saved_date is explicitly present and from another day
+                if saved_date and saved_date != today:
                     logger.info(
                         "Cached token is from %s — discarding (today is %s)",
                         saved_date, today,
@@ -384,12 +385,14 @@ class UpstoxClient:
 
     # ── REST LTP fallback ────────────────────────────────────
 
-    async def get_ltp(self, instrument_key: str) -> float:
-        """Fetch the last traded price via REST (single instrument)."""
+    async def get_ltp_batch(self, instrument_keys: list[str]) -> dict[str, float]:
+        """Fetch LTP quotes via REST for multiple instruments in one call."""
+        if not instrument_keys:
+            return {}
         async with httpx.AsyncClient() as client:
             resp = await client.get(
                 LTP_URL,
-                params={"instrument_key": instrument_key},
+                params={"instrument_key": ",".join(instrument_keys)},
                 headers=self._auth_headers(),
             )
             if resp.status_code == 401:
@@ -400,10 +403,29 @@ class UpstoxClient:
             resp.raise_for_status()
             data = resp.json()
 
-        # The response nests under data → <instrument_key> → ltp
         quotes = data.get("data", {})
-        for _key, quote in quotes.items():
-            return float(quote.get("ltp", 0.0))
+        result: dict[str, float] = {}
+        for key, quote in quotes.items():
+            price = quote.get("last_price")
+            if price is None:
+                price = quote.get("ltp")
+            if price is not None:
+                val = float(price)
+                result[key] = val
+                token = quote.get("instrument_token")
+                if token:
+                    result[token] = val
+                    result[token.replace("|", ":")] = val
+                    result[token.replace(":", "|")] = val
+        return result
+
+    async def get_ltp(self, instrument_key: str) -> float:
+        """Fetch the last traded price via REST (single instrument)."""
+        res = await self.get_ltp_batch([instrument_key])
+        if instrument_key in res:
+            return res[instrument_key]
+        for v in res.values():
+            return v
 
         raise ValueError(f"No LTP data returned for {instrument_key}")
 
@@ -543,17 +565,17 @@ async def stream_ltp(
                 retry_count = 0  # reset on successful connection
                 backoff = 1.0
 
-                # Subscribe to instruments in ltpc mode
+                # Subscribe to instruments in full mode
                 sub_msg = json.dumps({
                     "guid": str(uuid.uuid4()),
                     "method": "sub",
                     "data": {
-                        "mode": "ltpc",
+                        "mode": "full",
                         "instrumentKeys": instrument_keys,
                     },
                 })
-                # Send as text frame (str), NOT bytes — Upstox ignores binary frames
-                await ws.send(sub_msg)
+                # Send as binary frame (bytes) as required by Upstox V3 WebSocket API
+                await ws.send(sub_msg.encode("utf-8"))
                 logger.info(
                     "Subscribed to %d instrument(s): %s",
                     len(instrument_keys),

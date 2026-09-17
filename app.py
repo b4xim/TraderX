@@ -200,11 +200,30 @@ def build_dashboard_state() -> dict:
     }
 
 
+def find_position(key: str) -> Optional[dict]:
+    """Find position matching key via exact match, colon/pipe variations, or option_symbol."""
+    if key in active_positions:
+        return active_positions[key]
+    alt1 = key.replace(":", "|")
+    if alt1 in active_positions:
+        return active_positions[alt1]
+    alt2 = key.replace("|", ":")
+    if alt2 in active_positions:
+        return active_positions[alt2]
+    for pos in active_positions.values():
+        sym = pos.get("option_symbol") or ""
+        ikey = pos.get("instrument_key") or ""
+        if key in (sym, ikey) or (sym and sym in key) or (ikey and ikey in key):
+            return pos
+    return None
+
+
 # ─── LTP tick handler ───────────────────────────────────────
 
 async def on_ltp_tick(instrument_key: str, ltp: float, timestamp: int):
-    """Called for every LTP update from the WebSocket feed."""
-    if instrument_key not in active_positions:
+    """Called for every LTP update from the WebSocket feed or REST poll."""
+    pos = find_position(instrument_key)
+    if not pos:
         # Log key format mismatches — critical for diagnosing feed issues
         logger.warning(
             "TICK MISS — key not tracked: '%s' | tracked: %s",
@@ -212,11 +231,13 @@ async def on_ltp_tick(instrument_key: str, ltp: float, timestamp: int):
         )
         return
 
-    pos = active_positions[instrument_key]
     if pos["status"] != "OPEN":
         return
 
-    logger.info("📊 TICK HIT: %s LTP=%.2f", instrument_key, ltp)
+    if ltp <= 0:
+        return
+
+    logger.info("📊 TICK HIT: %s (%s) LTP=%.2f", pos["stock"], pos["option_symbol"], ltp)
     pos["current_ltp"] = ltp
     pos["pnl_pct"] = round(
         ((ltp - pos["entry_price"]) / pos["entry_price"]) * 100, 2
@@ -270,7 +291,7 @@ async def schedule_hard_exit():
 
 # ─── REST LTP polling fallback ──────────────────────────────
 
-async def poll_ltp_loop(interval: float = 5.0):
+async def poll_ltp_loop(interval: float = 3.0):
     """Poll REST LTP every *interval* seconds for all open positions.
 
     Acts as a safety net when the WebSocket feed doesn't deliver ticks
@@ -288,15 +309,22 @@ async def poll_ltp_loop(interval: float = 5.0):
             ]
             if not open_positions:
                 continue
-            for instrument_key, pos in open_positions:
-                try:
-                    ltp = await upstox.get_ltp(instrument_key)
-                    if ltp and ltp != pos["current_ltp"]:
-                        logger.info("🔄 POLL UPDATE %s: %.2f → %.2f",
-                                    instrument_key, pos["current_ltp"], ltp)
+            keys = [k for k, _ in open_positions]
+            try:
+                ltp_map = await upstox.get_ltp_batch(keys)
+                for instrument_key, pos in open_positions:
+                    ltp = ltp_map.get(instrument_key)
+                    if ltp is None:
+                        for k, v in ltp_map.items():
+                            if instrument_key in k or k in instrument_key or pos.get("option_symbol") in k:
+                                ltp = v
+                                break
+                    if ltp and ltp > 0 and ltp != pos["current_ltp"]:
+                        logger.info("🔄 POLL UPDATE %s (%s): %.2f → %.2f",
+                                    pos["stock"], pos["option_symbol"], pos["current_ltp"], ltp)
                         await on_ltp_tick(instrument_key, ltp, 0)
-                except Exception as e:
-                    logger.warning("Poll LTP error for %s: %s", instrument_key, e)
+            except Exception as e:
+                logger.warning("Poll LTP error: %s", e)
         except asyncio.CancelledError:
             logger.info("LTP polling stopped.")
             return
