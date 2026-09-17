@@ -67,13 +67,20 @@ def nearest_monthly_expiry(ref: date | None = None) -> str:
     return _monthly_expiry_candidates(ref)[0]
 
 
-def _monthly_expiry_candidates(ref: date | None = None, n: int = 9) -> list[str]:
+def _monthly_expiry_candidates(ref: date | None = None, n: int = 12) -> list[str]:
     """Return up to *n* monthly NSE expiry date candidates sorted ascending.
 
-    NSE stock options may be stored under the last Thursday, Friday, or
-    Saturday of the month depending on the expiry cycle. We generate all
-    three for the current month plus the next 2 months, filter to dates
-    >= today, deduplicate, sort, and return the nearest *n*.
+    NSE expiry rules (as of 2024-2026):
+      - NIFTY 50 monthly options  : last **Tuesday** of the month
+      - NIFTY 50 weekly options   : every Tuesday
+      - Stock options (monthly)   : last **Thursday** of the month
+      - Holiday rule: if that day is a trading holiday, expiry shifts
+        to the preceding trading day (Friday/Wednesday respectively)
+
+    To cover all cases without a holiday calendar we generate:
+      last Tuesday, Thursday, Friday, Saturday
+    for the current month + next 2 months, filter to >= today,
+    deduplicate, sort ascending, and return the nearest *n*.
     """
     import calendar
     from datetime import timedelta
@@ -89,8 +96,8 @@ def _monthly_expiry_candidates(ref: date | None = None, n: int = 9) -> list[str]
     candidates: set[date] = set()
     y, m = today.year, today.month
 
-    for _ in range(3):                      # current + next 2 months
-        for wd in (3, 4, 5):               # Thursday=3, Friday=4, Saturday=5
+    for _ in range(3):                  # current + next 2 months
+        for wd in (1, 3, 4, 5):        # Tue=1, Thu=3, Fri=4, Sat=5
             candidates.add(last_weekday(y, m, wd))
         if m == 12:
             y, m = y + 1, 1
@@ -227,11 +234,34 @@ class UpstoxClient:
 
     # ── Instrument search ────────────────────────────────────
 
-    async def search_instrument(self, stock_name: str) -> str:
-        """Search for an NSE equity instrument key by stock name.
+    # Known index instruments that live in NSE_INDEX, not NSE_EQ
+    _INDEX_KEYS: dict[str, str] = {
+        "NIFTY":       "NSE_INDEX|Nifty 50",
+        "NIFTY50":     "NSE_INDEX|Nifty 50",
+        "NIFTY 50":    "NSE_INDEX|Nifty 50",
+        "BANKNIFTY":   "NSE_INDEX|Nifty Bank",
+        "BANK NIFTY":  "NSE_INDEX|Nifty Bank",
+        "FINNIFTY":    "NSE_INDEX|Nifty Fin Service",
+        "MIDCPNIFTY":  "NSE_INDEX|NIFTY MID SELECT",
+        "SENSEX":      "BSE_INDEX|SENSEX",
+    }
 
-        Returns the first matching instrument_key (e.g. ``NSE_EQ|INE002A01018``).
+    async def search_instrument(self, stock_name: str) -> str:
+        """Search for an NSE equity or index instrument key by name.
+
+        Indices (NIFTY, BANKNIFTY, etc.) are resolved directly from a
+        built-in map without an API call.  Equity stocks are resolved
+        via the Upstox instrument search API.
+
+        Returns an instrument_key (e.g. ``NSE_EQ|INE002A01018`` or
+        ``NSE_INDEX|Nifty 50``).
         """
+        # Fast-path: known index names
+        index_key = self._INDEX_KEYS.get(stock_name.strip().upper())
+        if index_key:
+            logger.info("Index instrument resolved: %s → %s", stock_name, index_key)
+            return index_key
+
         async with httpx.AsyncClient() as client:
             resp = await client.get(
                 INSTRUMENT_SEARCH_URL,
