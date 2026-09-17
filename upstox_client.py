@@ -552,7 +552,8 @@ async def stream_ltp(
                         "instrumentKeys": instrument_keys,
                     },
                 })
-                await ws.send(sub_msg.encode("utf-8"))
+                # Send as text frame (str), NOT bytes — Upstox ignores binary frames
+                await ws.send(sub_msg)
                 logger.info(
                     "Subscribed to %d instrument(s): %s",
                     len(instrument_keys),
@@ -561,7 +562,12 @@ async def stream_ltp(
 
                 # Receive loop
                 async for raw_msg in ws:
-                    decoded = _decode_protobuf(raw_msg)
+                    # Upstox sends protobuf (bytes); occasionally sends JSON text
+                    if isinstance(raw_msg, str):
+                        raw_bytes = raw_msg.encode("utf-8")
+                    else:
+                        raw_bytes = raw_msg
+                    decoded = _decode_protobuf(raw_bytes)
                     msg_type = decoded.get("type", -1)
 
                     # type 2 = market_info (first message) — skip

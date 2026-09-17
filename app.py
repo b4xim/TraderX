@@ -64,13 +64,15 @@ feed_connected = False
 # WebSocket feed task
 ws_feed_task: Optional[asyncio.Task] = None
 
+# REST LTP polling fallback task
+ltp_poll_task: Optional[asyncio.Task] = None
+
 # Stock picker scan state
 last_scan_result: Optional[ScanResult] = None
 scanner_task: Optional[asyncio.Task] = None
 
 # Hard exit scheduler task
 exit_scheduler_task: Optional[asyncio.Task] = None
-
 
 
 # ─── Position management ────────────────────────────────────
@@ -266,11 +268,47 @@ async def schedule_hard_exit():
         logger.info("WebSocket feed stopped after hard exit.")
 
 
+# ─── REST LTP polling fallback ──────────────────────────────
+
+async def poll_ltp_loop(interval: float = 5.0):
+    """Poll REST LTP every *interval* seconds for all open positions.
+
+    Acts as a safety net when the WebSocket feed doesn't deliver ticks
+    (e.g. thin F&O markets, subscription not registering, etc.).
+    """
+    logger.info("🔄 REST LTP polling started (every %.0fs)", interval)
+    while True:
+        try:
+            await asyncio.sleep(interval)
+            if not upstox or not upstox.access_token:
+                continue
+            open_positions = [
+                (k, pos) for k, pos in active_positions.items()
+                if pos["status"] == "OPEN"
+            ]
+            if not open_positions:
+                continue
+            for instrument_key, pos in open_positions:
+                try:
+                    ltp = await upstox.get_ltp(instrument_key)
+                    if ltp and ltp != pos["current_ltp"]:
+                        logger.info("🔄 POLL UPDATE %s: %.2f → %.2f",
+                                    instrument_key, pos["current_ltp"], ltp)
+                        await on_ltp_tick(instrument_key, ltp, 0)
+                except Exception as e:
+                    logger.warning("Poll LTP error for %s: %s", instrument_key, e)
+        except asyncio.CancelledError:
+            logger.info("LTP polling stopped.")
+            return
+        except Exception as e:
+            logger.error("poll_ltp_loop error: %s", e)
+
+
 # ─── WebSocket feed management ──────────────────────────────
 
 async def start_feed(instrument_keys: list[str]):
-    """Start the Upstox WebSocket feed for given instruments."""
-    global ws_feed_task, feed_connected
+    """Start the Upstox WebSocket feed + REST polling fallback."""
+    global ws_feed_task, feed_connected, ltp_poll_task
 
     if not upstox or not upstox.access_token:
         logger.error("Cannot start feed: not authenticated with Upstox")
@@ -319,6 +357,17 @@ async def start_feed(instrument_keys: list[str]):
             pass
 
     ws_feed_task = asyncio.create_task(run_feed())
+
+    # Cancel existing poll task and start fresh
+    if ltp_poll_task and not ltp_poll_task.done():
+        ltp_poll_task.cancel()
+        try:
+            await ltp_poll_task
+        except (asyncio.CancelledError, Exception):
+            pass
+    ltp_poll_task = asyncio.create_task(poll_ltp_loop())
+    logger.info("📡 Feed + polling started for: %s", instrument_keys)
+
 
 
 # ─── Stock Picker Schedulers ────────────────────────────────
@@ -443,6 +492,8 @@ async def lifespan(app: FastAPI):
     # Shutdown
     if ws_feed_task and not ws_feed_task.done():
         ws_feed_task.cancel()
+    if ltp_poll_task and not ltp_poll_task.done():
+        ltp_poll_task.cancel()
     if exit_scheduler_task and not exit_scheduler_task.done():
         exit_scheduler_task.cancel()
     if scanner_task and not scanner_task.done():
