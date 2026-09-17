@@ -50,12 +50,39 @@ BASE_URL = "https://api.upstox.com/v2"
 AUTH_DIALOG_URL = f"{BASE_URL}/login/authorization/dialog"
 TOKEN_URL = f"{BASE_URL}/login/authorization/token"
 INSTRUMENT_SEARCH_URL = f"{BASE_URL}/instruments/search"
-OPTION_EXPIRY_URL = f"{BASE_URL}/option/expiry-date"
 OPTION_CHAIN_URL = f"{BASE_URL}/option/chain"
 LTP_URL = f"{BASE_URL}/market-quote/ltp"
 WS_AUTH_URL = f"{BASE_URL}/feed/market-data-feed/authorize"
 
 TOKEN_FILE = Path(__file__).parent / ".upstox_token"
+
+
+def nearest_monthly_expiry(ref: date | None = None) -> str:
+    """Return the nearest NSE monthly-expiry date as YYYY-MM-DD.
+
+    NSE stock options (and index monthly contracts) expire on the
+    **last Thursday of the month**.  If the last Thursday of the current
+    month is today or still in the future we return it; otherwise we
+    return the last Thursday of the *next* month.
+    """
+    import calendar
+    from datetime import timedelta
+
+    def last_thursday(y: int, m: int) -> date:
+        last_day = calendar.monthrange(y, m)[1]
+        d = date(y, m, last_day)
+        # Thursday = weekday 3; walk back from last day
+        offset = (d.weekday() - 3) % 7
+        return d - timedelta(days=offset)
+
+    today = ref or date.today()
+    candidate = last_thursday(today.year, today.month)
+    if candidate >= today:
+        return candidate.isoformat()
+    # Current month's expiry already passed — use next month
+    if today.month == 12:
+        return last_thursday(today.year + 1, 1).isoformat()
+    return last_thursday(today.year, today.month + 1).isoformat()
 
 
 # ──────────────────────────────────────────────────────────────
@@ -223,67 +250,22 @@ class UpstoxClient:
         logger.info("Instrument found (first match): %s → %s", stock_name, key)
         return key
 
-    # ── Option expiry lookup ──────────────────────────────────
-
-    async def get_nearest_expiry(self, instrument_key: str) -> str:
-        """Return the nearest upcoming expiry date (YYYY-MM-DD) for *instrument_key*.
-
-        Upstox stocks have either weekly or monthly expiries. Using
-        ``"current_week"`` as the expiry_date param fails for monthly-only
-        F&O stocks (TECHM, INFY, etc.). This method fetches all available
-        expiry dates and picks the nearest one that is today or in the future.
-        """
-        async with httpx.AsyncClient() as client:
-            resp = await client.get(
-                OPTION_EXPIRY_URL,
-                params={"instrument_key": instrument_key},
-                headers=self._auth_headers(),
-            )
-            if resp.status_code == 401:
-                self._clear_token()
-                raise RuntimeError(
-                    "Upstox token expired or invalid — please login again via the dashboard."
-                )
-            resp.raise_for_status()
-            data = resp.json()
-
-        expiry_dates: list[str] = data.get("data", [])
-        if not expiry_dates:
-            raise ValueError(
-                f"No option expiry dates available for instrument {instrument_key}. "
-                "The stock may not have F&O contracts."
-            )
-
-        today = date.today().isoformat()
-        # Pick the nearest date that is today or in the future
-        upcoming = [d for d in expiry_dates if d >= today]
-        if not upcoming:
-            # All expiries have passed (e.g. called after market close on expiry day)
-            # Fall back to the last available expiry
-            upcoming = [expiry_dates[-1]]
-
-        nearest = min(upcoming)
-        logger.info(
-            "Nearest expiry for %s: %s (from %d available)",
-            instrument_key, nearest, len(expiry_dates),
-        )
-        return nearest
-
     # ── Option chain — ATM PE lookup ─────────────────────────
 
     async def get_atm_pe(self, stock_name: str) -> tuple[str, str, float]:
-        """Find the ATM Put Option for *stock_name* (nearest available expiry).
+        """Find the ATM Put Option for *stock_name* (nearest monthly expiry).
 
-        Works for both weekly-expiry instruments (NIFTY, BANKNIFTY) and
-        monthly-only F&O stocks (TECHM, INFY, etc.).
+        Uses the last-Thursday-of-month rule (NSE monthly expiry) computed
+        locally — no extra API call needed.
 
         Returns ``(stock_name, pe_instrument_key, pe_ltp)``.
         """
         # Step 1 — resolve stock name to equity instrument key
         eq_key = await self.search_instrument(stock_name)
 
-        # Step 2 — find nearest valid expiry date
-        expiry_date = await self.get_nearest_expiry(eq_key)
+        # Step 2 — compute nearest monthly expiry (last Thursday of month)
+        expiry_date = nearest_monthly_expiry()
+        logger.info("Using expiry date %s for %s", expiry_date, stock_name)
 
         # Step 3 — fetch the option chain for that expiry
         async with httpx.AsyncClient() as client:
