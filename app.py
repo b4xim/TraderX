@@ -522,7 +522,11 @@ async def submit_stocks(request: Request):
             status_code=401,
         )
 
-    body = await request.json()
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"error": "Invalid JSON in request body"}, status_code=400)
+
     inputs = body.get("stocks", [])
 
     if not inputs:
@@ -540,44 +544,49 @@ async def submit_stocks(request: Request):
     results = []
     instrument_keys = []
 
-    for inp in inputs:
-        inp = inp.strip()
-        try:
-            if "|" in inp:
-                # User provided an exact instrument key (e.g., NSE_FO|51060)
-                instrument_key = inp
-                stock = inp.split("|")[-1]
-                ltp = await upstox.get_ltp(instrument_key)
-            else:
-                # User provided a stock name — resolve ATM PE
-                stock, instrument_key, ltp = await upstox.get_atm_pe(inp)
+    try:
+        for inp in inputs:
+            inp = inp.strip()
+            try:
+                if "|" in inp:
+                    # User provided an exact instrument key (e.g., NSE_FO|51060)
+                    instrument_key = inp
+                    stock = inp.split("|")[-1]
+                    ltp = await upstox.get_ltp(instrument_key)
+                else:
+                    # User provided a stock name — resolve ATM PE
+                    stock, instrument_key, ltp = await upstox.get_atm_pe(inp)
 
-            pos = create_position(stock, instrument_key, ltp)
-            active_positions[instrument_key] = pos
-            instrument_keys.append(instrument_key)
-            results.append({
-                "stock": stock,
-                "instrument_key": instrument_key,
-                "entry_price": ltp,
-                "target": pos["target"],
-                "stoploss": pos["stoploss"],
-            })
+                pos = create_position(stock, instrument_key, ltp)
+                active_positions[instrument_key] = pos
+                instrument_keys.append(instrument_key)
+                results.append({
+                    "stock": stock,
+                    "instrument_key": instrument_key,
+                    "entry_price": ltp,
+                    "target": pos["target"],
+                    "stoploss": pos["stoploss"],
+                })
 
-        except Exception as e:
-            logger.error(f"Error resolving {inp}: {e}")
-            results.append({"stock": inp, "error": str(e)})
+            except Exception as e:
+                logger.error(f"Error resolving {inp}: {e}")
+                results.append({"stock": inp, "error": str(e)})
 
-    # Start WebSocket feed for all resolved instruments
-    if instrument_keys:
-        await start_feed(instrument_keys)
+        # Start WebSocket feed for all resolved instruments
+        if instrument_keys:
+            await start_feed(instrument_keys)
 
-        # Schedule hard exit
-        if exit_scheduler_task and not exit_scheduler_task.done():
-            exit_scheduler_task.cancel()
-        exit_scheduler_task = asyncio.create_task(schedule_hard_exit())
+            # Schedule hard exit
+            if exit_scheduler_task and not exit_scheduler_task.done():
+                exit_scheduler_task.cancel()
+            exit_scheduler_task = asyncio.create_task(schedule_hard_exit())
 
-    await broadcast_state()
-    return {"results": results}
+        await broadcast_state()
+        return {"results": results}
+
+    except Exception as exc:
+        logger.error(f"Unexpected error in submit_stocks: {exc}", exc_info=True)
+        return JSONResponse({"error": f"Internal error: {str(exc)}"}, status_code=500)
 
 
 @app.post("/api/mark-actual/{trade_id}")

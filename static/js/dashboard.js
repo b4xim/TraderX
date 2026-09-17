@@ -422,7 +422,17 @@ async function submitStocks() {
       headers: { 'Content-Type': 'application/json' },
       body:    JSON.stringify({ stocks }),
     });
-    const data = await resp.json();
+
+    // Safely parse response — server may return HTML on 500 errors
+    let data;
+    const contentType = resp.headers.get('content-type') || '';
+    if (contentType.includes('application/json')) {
+      data = await resp.json();
+    } else {
+      const text = await resp.text();
+      data = { error: `Server error (${resp.status}): ${text.substring(0, 200)}` };
+    }
+
     if (!resp.ok) { showSubmitError(data.error || `Error ${resp.status}`); return; }
     $('stock-1').value = '';
     $('stock-2').value = '';
