@@ -153,6 +153,7 @@ def close_position(position: dict, exit_price: float, reason: str):
 
 async def broadcast_state():
     """Push current state to all connected dashboard clients."""
+    global dashboard_clients
     state = build_dashboard_state()
     message = json.dumps(state)
     dead = set()
