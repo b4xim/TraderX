@@ -572,6 +572,12 @@ async def stream_ltp(
                     feeds = decoded.get("feeds", {})
                     ts = decoded.get("currentTs", 0)
 
+                    if feeds:
+                        logger.info(
+                            "📡 WS FEED keys received: %s",
+                            {k: v.get("ltp") for k, v in feeds.items()},
+                        )
+
                     for inst_key, feed_data in feeds.items():
                         ltp = feed_data.get("ltp")
                         tick_ts = feed_data.get("ltt", ts)

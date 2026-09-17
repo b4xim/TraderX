@@ -203,12 +203,18 @@ def build_dashboard_state() -> dict:
 async def on_ltp_tick(instrument_key: str, ltp: float, timestamp: int):
     """Called for every LTP update from the WebSocket feed."""
     if instrument_key not in active_positions:
+        # Log key format mismatches — critical for diagnosing feed issues
+        logger.warning(
+            "TICK MISS — key not tracked: '%s' | tracked: %s",
+            instrument_key, list(active_positions.keys()),
+        )
         return
 
     pos = active_positions[instrument_key]
     if pos["status"] != "OPEN":
         return
 
+    logger.info("📊 TICK HIT: %s LTP=%.2f", instrument_key, ltp)
     pos["current_ltp"] = ltp
     pos["pnl_pct"] = round(
         ((ltp - pos["entry_price"]) / pos["entry_price"]) * 100, 2
