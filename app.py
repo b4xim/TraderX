@@ -75,7 +75,8 @@ exit_scheduler_task: Optional[asyncio.Task] = None
 
 # ─── Position management ────────────────────────────────────
 
-def create_position(stock: str, instrument_key: str, entry_price: float) -> dict:
+def create_position(stock: str, instrument_key: str, entry_price: float,
+                    option_symbol: str = "") -> dict:
     """Create a new paper trading position."""
     now = datetime.now(IST)
     target = entry_price * (1 + cfg.strategy.target_pct / 100)
@@ -83,7 +84,7 @@ def create_position(stock: str, instrument_key: str, entry_price: float) -> dict
 
     trade_id = insert_trade(
         stock=stock,
-        option_symbol=instrument_key,
+        option_symbol=option_symbol or instrument_key,
         entry_price=entry_price,
         entry_time=now,
     )
@@ -92,6 +93,7 @@ def create_position(stock: str, instrument_key: str, entry_price: float) -> dict
         "trade_id": trade_id,
         "stock": stock,
         "instrument_key": instrument_key,
+        "option_symbol": option_symbol or instrument_key,
         "entry_price": entry_price,
         "entry_time": now.isoformat(),
         "current_ltp": entry_price,
@@ -105,7 +107,7 @@ def create_position(stock: str, instrument_key: str, entry_price: float) -> dict
         "is_actual_pick": False,
     }
     logger.info(
-        f"POSITION OPENED: {stock} ({instrument_key}) @ ₹{entry_price:.2f} | "
+        f"POSITION OPENED: {stock} ({option_symbol or instrument_key}) @ ₹{entry_price:.2f} | "
         f"Target: ₹{target:.2f} | SL: ₹{stoploss:.2f}"
     )
     return position
@@ -554,16 +556,18 @@ async def submit_stocks(request: Request):
                     instrument_key = inp
                     stock = inp.split("|")[-1]
                     ltp = await upstox.get_ltp(instrument_key)
+                    option_symbol = instrument_key          # user-supplied key, use as-is
                 else:
                     # User provided a stock name — resolve ATM PE
-                    stock, instrument_key, ltp = await upstox.get_atm_pe(inp)
+                    stock, instrument_key, ltp, option_symbol = await upstox.get_atm_pe(inp)
 
-                pos = create_position(stock, instrument_key, ltp)
+                pos = create_position(stock, instrument_key, ltp, option_symbol)
                 active_positions[instrument_key] = pos
                 instrument_keys.append(instrument_key)
                 results.append({
                     "stock": stock,
                     "instrument_key": instrument_key,
+                    "option_symbol": option_symbol,
                     "entry_price": ltp,
                     "target": pos["target"],
                     "stoploss": pos["stoploss"],

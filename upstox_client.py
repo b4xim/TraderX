@@ -357,12 +357,19 @@ class UpstoxClient:
                     pe = best_row.get("put_options", {})
                     pe_key = pe.get("instrument_key", "")
                     pe_ltp = pe.get("market_data", {}).get("ltp", 0.0)
+                    strike  = int(best_row["strike_price"])
+
+                    # Build human-readable NSE option symbol: TECHM26SEP1540PE
+                    exp = date.fromisoformat(expiry_date)
+                    mon = exp.strftime("%b").upper()          # SEP
+                    yy  = exp.strftime("%y")                  # 26
+                    option_symbol = f"{stock_name.upper()}{yy}{mon}{strike}PE"
 
                     logger.info(
-                        "ATM PE for %s (expiry=%s): strike=%s, key=%s, ltp=%.2f (spot=%.2f)",
-                        stock_name, expiry_date, best_row["strike_price"], pe_key, pe_ltp, spot,
+                        "ATM PE for %s (expiry=%s): %s key=%s ltp=%.2f (spot=%.2f)",
+                        stock_name, expiry_date, option_symbol, pe_key, pe_ltp, spot,
                     )
-                    return stock_name.upper(), pe_key, pe_ltp
+                    return stock_name.upper(), pe_key, pe_ltp, option_symbol
 
                 logger.warning(
                     "Empty option chain for %s expiry=%s — trying next expiry",

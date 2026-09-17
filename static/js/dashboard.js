@@ -280,7 +280,7 @@ function renderCard(el, pos, idx) {
     <div class="card-header">
       <div>
         <div class="card-symbol">${escHtml(pos.stock)}</div>
-        <div class="card-symbol-sub">${escHtml(pos.instrument_key)}</div>
+        <div class="card-symbol-sub">${escHtml(pos.option_symbol || pos.instrument_key)}</div>
       </div>
       <span class="status-badge ${statusClass}">${badgeLabel}</span>
     </div>
