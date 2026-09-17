@@ -311,6 +311,12 @@ class UpstoxClient:
 
                 chain = resp.json()
                 rows = chain.get("data", [])
+                if not rows:
+                    # Log full response to help diagnose why chain is empty
+                    logger.warning(
+                        "Empty option chain for %s expiry=%s | status=%s | response=%s",
+                        stock_name, expiry_date, resp.status_code, resp.text[:500],
+                    )
                 if rows:
                     # Found a valid chain — proceed
                     spot = rows[0].get("underlying_spot_price", 0)
