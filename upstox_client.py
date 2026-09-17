@@ -50,6 +50,7 @@ BASE_URL = "https://api.upstox.com/v2"
 AUTH_DIALOG_URL = f"{BASE_URL}/login/authorization/dialog"
 TOKEN_URL = f"{BASE_URL}/login/authorization/token"
 INSTRUMENT_SEARCH_URL = f"{BASE_URL}/instruments/search"
+OPTION_EXPIRY_URL = f"{BASE_URL}/option/expiry-date"
 OPTION_CHAIN_URL = f"{BASE_URL}/option/chain"
 LTP_URL = f"{BASE_URL}/market-quote/ltp"
 WS_AUTH_URL = f"{BASE_URL}/feed/market-data-feed/authorize"
@@ -222,23 +223,75 @@ class UpstoxClient:
         logger.info("Instrument found (first match): %s → %s", stock_name, key)
         return key
 
+    # ── Option expiry lookup ──────────────────────────────────
+
+    async def get_nearest_expiry(self, instrument_key: str) -> str:
+        """Return the nearest upcoming expiry date (YYYY-MM-DD) for *instrument_key*.
+
+        Upstox stocks have either weekly or monthly expiries. Using
+        ``"current_week"`` as the expiry_date param fails for monthly-only
+        F&O stocks (TECHM, INFY, etc.). This method fetches all available
+        expiry dates and picks the nearest one that is today or in the future.
+        """
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(
+                OPTION_EXPIRY_URL,
+                params={"instrument_key": instrument_key},
+                headers=self._auth_headers(),
+            )
+            if resp.status_code == 401:
+                self._clear_token()
+                raise RuntimeError(
+                    "Upstox token expired or invalid — please login again via the dashboard."
+                )
+            resp.raise_for_status()
+            data = resp.json()
+
+        expiry_dates: list[str] = data.get("data", [])
+        if not expiry_dates:
+            raise ValueError(
+                f"No option expiry dates available for instrument {instrument_key}. "
+                "The stock may not have F&O contracts."
+            )
+
+        today = date.today().isoformat()
+        # Pick the nearest date that is today or in the future
+        upcoming = [d for d in expiry_dates if d >= today]
+        if not upcoming:
+            # All expiries have passed (e.g. called after market close on expiry day)
+            # Fall back to the last available expiry
+            upcoming = [expiry_dates[-1]]
+
+        nearest = min(upcoming)
+        logger.info(
+            "Nearest expiry for %s: %s (from %d available)",
+            instrument_key, nearest, len(expiry_dates),
+        )
+        return nearest
+
     # ── Option chain — ATM PE lookup ─────────────────────────
 
     async def get_atm_pe(self, stock_name: str) -> tuple[str, str, float]:
-        """Find the ATM Put Option for *stock_name* (current-week expiry).
+        """Find the ATM Put Option for *stock_name* (nearest available expiry).
+
+        Works for both weekly-expiry instruments (NIFTY, BANKNIFTY) and
+        monthly-only F&O stocks (TECHM, INFY, etc.).
 
         Returns ``(stock_name, pe_instrument_key, pe_ltp)``.
         """
         # Step 1 — resolve stock name to equity instrument key
         eq_key = await self.search_instrument(stock_name)
 
-        # Step 2 — fetch the option chain
+        # Step 2 — find nearest valid expiry date
+        expiry_date = await self.get_nearest_expiry(eq_key)
+
+        # Step 3 — fetch the option chain for that expiry
         async with httpx.AsyncClient() as client:
             resp = await client.get(
                 OPTION_CHAIN_URL,
                 params={
                     "instrument_key": eq_key,
-                    "expiry_date": "current_week",
+                    "expiry_date": expiry_date,
                 },
                 headers=self._auth_headers(),
             )
@@ -252,7 +305,10 @@ class UpstoxClient:
 
         rows = chain.get("data", [])
         if not rows:
-            raise ValueError(f"Empty option chain for {stock_name} ({eq_key})")
+            raise ValueError(
+                f"Empty option chain for {stock_name} ({eq_key}) expiry={expiry_date}. "
+                "The stock may not have tradeable options for this expiry."
+            )
 
         # Step 3 — find ATM strike (closest to underlying spot price)
         spot = rows[0].get("underlying_spot_price", 0)
