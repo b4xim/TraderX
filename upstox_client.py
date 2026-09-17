@@ -18,9 +18,13 @@ import logging
 import ssl
 import time
 import uuid
+from datetime import date
 from pathlib import Path
 from typing import Callable, Awaitable
 from urllib.parse import urlencode
+from zoneinfo import ZoneInfo
+
+_IST = ZoneInfo("Asia/Kolkata")
 
 import httpx
 
@@ -69,19 +73,42 @@ class UpstoxClient:
     # ── token persistence ────────────────────────────────────
 
     def _load_token(self) -> None:
-        """Load a previously saved access token from disk."""
+        """Load a previously saved access token from disk.
+
+        Discards the cached token if it was saved on a previous calendar
+        day (IST) — Upstox tokens expire at the end of each trading day.
+        """
         if TOKEN_FILE.exists():
             try:
                 data = json.loads(TOKEN_FILE.read_text())
+                saved_date = data.get("saved_date")  # e.g. "2026-09-17"
+                today = date.today().isoformat()
+                if saved_date != today:
+                    logger.info(
+                        "Cached token is from %s — discarding (today is %s)",
+                        saved_date, today,
+                    )
+                    TOKEN_FILE.unlink(missing_ok=True)
+                    self._access_token = None
+                    return
                 self._access_token = data.get("access_token")
                 logger.info("Loaded cached access token from %s", TOKEN_FILE)
             except (json.JSONDecodeError, OSError):
                 self._access_token = None
 
     def _save_token(self, token: str) -> None:
-        """Persist the access token for same-day reuse."""
-        TOKEN_FILE.write_text(json.dumps({"access_token": token}))
+        """Persist the access token with today's IST date for expiry checking."""
+        TOKEN_FILE.write_text(json.dumps({
+            "access_token": token,
+            "saved_date": date.today().isoformat(),
+        }))
         logger.info("Access token saved to %s", TOKEN_FILE)
+
+    def _clear_token(self) -> None:
+        """Invalidate the in-memory token and remove the token file."""
+        self._access_token = None
+        TOKEN_FILE.unlink(missing_ok=True)
+        logger.warning("Access token cleared — re-authentication required.")
 
     @property
     def access_token(self) -> str | None:
@@ -172,6 +199,11 @@ class UpstoxClient:
                 },
                 headers=self._auth_headers(),
             )
+            if resp.status_code == 401:
+                self._clear_token()
+                raise RuntimeError(
+                    "Upstox token expired or invalid — please login again via the dashboard."
+                )
             resp.raise_for_status()
             data = resp.json()
 
@@ -210,6 +242,11 @@ class UpstoxClient:
                 },
                 headers=self._auth_headers(),
             )
+            if resp.status_code == 401:
+                self._clear_token()
+                raise RuntimeError(
+                    "Upstox token expired or invalid — please login again via the dashboard."
+                )
             resp.raise_for_status()
             chain = resp.json()
 
@@ -243,6 +280,11 @@ class UpstoxClient:
                 params={"instrument_key": instrument_key},
                 headers=self._auth_headers(),
             )
+            if resp.status_code == 401:
+                self._clear_token()
+                raise RuntimeError(
+                    "Upstox token expired or invalid — please login again via the dashboard."
+                )
             resp.raise_for_status()
             data = resp.json()
 
